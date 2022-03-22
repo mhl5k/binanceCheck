@@ -1,0 +1,6 @@
+settings.json
+database.json
+*.pyc
+__pycache__
+__temp__
+*.log
