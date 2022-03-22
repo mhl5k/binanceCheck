@@ -4,7 +4,8 @@ checks your binance account with the given API key.
 
 * binanceCheck: It collects all currencies you have in savings (flexibel),
 liquid swap and your amounts in the wallet used for spot orders. It shows the growth across datasets.
-* binanceTradeTimeProgress: Checks all trading pairs, rates and prints 5m, 1h, 1d growth
+* binanceTradeTimeProgress: Checks all trading pairs, rates and prints 5m, 1h, 1d growth. 
+You can specify parts of trading pairs as parameter e.g. BTC, ETH, ETHBTC, etc.
 
 Use this code as starting point to gather information from Binance.
 Due to missing APIs to access all Binance products, you may see wrong
