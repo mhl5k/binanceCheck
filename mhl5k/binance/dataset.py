@@ -225,9 +225,10 @@ class BinanceDataSet:
                 # add to unsorted list
                 unsortedSymbols.append(newSymbol)
 
+        print("%d symbols done %20s" % (nrOfSymbols," "), flush=True)
 
         # sort them
-        print("\nSorting by rate")
+        print("Sorting by rate")
         sortedList = sorted(unsortedSymbols, key=itemgetter('rated'))
 
         # show them

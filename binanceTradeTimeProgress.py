@@ -10,7 +10,7 @@ from mhl5k.binance.dataset import BinanceDataSet
 from settings import Settings
 from mhl5k.files import Files
 
-VERSION = "0.9"
+VERSION = "0.10"
 
 # Functions and constants
 # ------------------------
