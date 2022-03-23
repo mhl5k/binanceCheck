@@ -164,7 +164,7 @@ class BinanceDataSet:
         newCryptoSet.printValues()
 
 
-    def showTradeTimeProgress(self,limit=""):
+    def showTradeTimeProgress(self,filter=""):
         def getCandleGrowth(candleData1, candleData2) -> float:
             return float(candleData2)/float(candleData1)*100.0-100.0
 
@@ -194,9 +194,10 @@ class BinanceDataSet:
             # get some properties            
             isSpot:bool=symbol["isSpotTradingAllowed"]
             isTrading:bool=symbol["status"] == "TRADING"
+            quoteAsset=symbol["quoteAsset"]
 
             # collect only when properties fit
-            if limit in symbolName and isSpot is True and isTrading is True:
+            if filter in symbolName and isSpot is True and isTrading is True:
                 newSymbol=dict()
                 newSymbol["name"]=symbolName
                 
@@ -216,6 +217,7 @@ class BinanceDataSet:
                 # volume rate of current 1d
                 volume=candleData[1][7]
                 newSymbol["volume"]=float(volume)
+                newSymbol["quoteAsset"]=quoteAsset
 
                 # rate the symbol 
                 newSymbol["rated"]=growth1d*2+growth1h*3+growth5m*1
@@ -240,7 +242,8 @@ class BinanceDataSet:
             color2=Colors.getColorByGLTZero(v2)
             color3=Colors.getColorByGLTZero(v3)
 
-            print("%8s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"]))
+            print("%8s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f %s" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"],
+            symbol["quoteAsset"]))
 
 
     # Snapshots

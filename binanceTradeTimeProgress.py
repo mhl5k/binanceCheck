@@ -10,7 +10,7 @@ from mhl5k.binance.dataset import BinanceDataSet
 from settings import Settings
 from mhl5k.files import Files
 
-VERSION = "0.8"
+VERSION = "0.9"
 
 # Functions and constants
 # ------------------------
@@ -26,9 +26,9 @@ def printAppName():
 printAppName()
 
 # limit to command line parameter
-commandlineLimit=""
+argFilter=""
 if len(sys.argv) == 2:
-    commandlineLimit=sys.argv[1]
+    argFilter=sys.argv[1]
 
 # load settings
 settings=Settings()
@@ -38,7 +38,7 @@ config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())
 try:
     # Binance Account Data Set
     binanceAccountDataSet=BinanceDataSet(settings)
-    binanceAccountDataSet.showTradeTimeProgress(limit=commandlineLimit)
+    binanceAccountDataSet.showTradeTimeProgress(filter=argFilter)
 
 except Exception as E:
     print("Error: %s" % E)
