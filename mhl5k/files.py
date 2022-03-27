@@ -1,19 +1,25 @@
+# V0.10
+
 import os
+import sys
 from pathlib import Path
 
 class Files:
 
+    def getScriptPath() -> str:
+        return os.path.dirname(os.path.realpath(sys.argv[0]))
+
     def getSettingsFilenameWithPath() -> str:
-        settingsFilename = "settings.json"
-        return os.getcwd()+"/"+settingsFilename
+        filename = "settings.json"
+        return Files.getScriptPath()+"/"+filename
 
     def getDatabaseFilenameWithPath() -> str:
         filename = "database.json"
-        return os.getcwd()+"/"+filename
+        return Files.getScriptPath()+"/"+filename
 
     def getLoggingFilenameWithPath() -> str:
         filename = "logging.log"
-        return os.getcwd()+"/"+filename
+        return Files.getScriptPath()+"/"+filename
 
     def settingsExists() -> bool:
         return Path(Files.getSettingsFilenameWithPath()).is_file()
