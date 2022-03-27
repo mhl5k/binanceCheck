@@ -1,8 +1,11 @@
-# V0.10
+# Files by mhl5k
+# MIT license
 
 import os
 import sys
 from pathlib import Path
+
+__version__ = "0.11"
 
 class Files:
 
@@ -26,3 +29,16 @@ class Files:
 
     def databaseExists() -> bool:
         return Path(Files.getDatabaseFilenameWithPath()).is_file()
+
+# Test function for module  
+def _test():
+    # tests
+    filepath=Files.getScriptPath()
+    assert filepath != ""
+    
+    # end
+    print(__file__+" "+__version__+": All module tests did run fine.")
+
+# when file ist started directlx
+if __name__ == '__main__':
+    _test()

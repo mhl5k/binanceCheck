@@ -9,7 +9,7 @@ from ..files import Files
 from .crypto import Crypto
 from .cryptoset import CryptoSet
 from datetime import datetime
-from settings import Settings
+from ..settings import Settings
 import json
 import logging
 from operator import itemgetter

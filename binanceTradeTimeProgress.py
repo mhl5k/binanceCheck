@@ -7,10 +7,10 @@ import sys
 import logging
 from binance.lib.utils import config_logging
 from mhl5k.binance.dataset import BinanceDataSet
-from settings import Settings
+from mhl5k.settings import Settings
 from mhl5k.files import Files
 
-VERSION = "0.10"
+VERSION = "0.11"
 
 # Functions and constants
 # ------------------------
