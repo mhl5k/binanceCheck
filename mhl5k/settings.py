@@ -4,15 +4,17 @@
 # Author: mhl5k
 
 import json
-from mhl5k.files import Files
+from .files import Files
+
+__version__ = "0.8"
 
 class Settings:
 
     # DO NOT CHANGE SETTINGS HERE!
     defaults = {
         "version": "1",
-        "apiKey": "insert-your-binance-api-key",
-        "apiSecret": "insert-your-binance-secret-key"
+        "apiKey": "insert-your-api-key",
+        "apiSecret": "insert-your-secret-key"
     }
 
     def initializeNewSettingsJSONFile(self):
@@ -37,3 +39,16 @@ class Settings:
             exit(1)
         else:
             self.load()
+
+
+
+# Test function for module  
+def _test():
+    # tests
+    
+    # end
+    print(__file__+" "+__version__+": All module tests did run fine.")
+
+# when file ist started directlx
+if __name__ == '__main__':
+    _test()
