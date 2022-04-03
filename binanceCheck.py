@@ -8,21 +8,19 @@ from binance.lib.utils import config_logging
 from mhl5k.binance.dataset import BinanceDataSet
 from mhl5k.settings import Settings
 from mhl5k.files import Files
+from mhl5k.app import App
 
-VERSION = "0.73"
+VERSION = "0.12"
 
 # Functions and constants
 # ------------------------
 
 APIURL="https://api.binance.com"
 
-def printAppName():
-    print("binanceCheck %s by mhl5k, MIT license" % (VERSION))
-
-
 # Main start up
 # -------------
-printAppName()
+App.printName(version=VERSION)
+
 settings=Settings()
 
 config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())

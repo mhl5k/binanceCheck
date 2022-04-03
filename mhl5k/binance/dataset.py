@@ -13,6 +13,8 @@ from ..settings import Settings
 import json
 import logging
 from operator import itemgetter
+import talib
+import numpy
 
 
 def printSection(sec: str):
@@ -201,15 +203,18 @@ class BinanceDataSet:
                 newSymbol=dict()
                 newSymbol["name"]=symbolName
                 
+                # candles for 5m
                 candleData=self.spotClient.klines(symbol=symbolName,interval="5m",limit=2)
                 #print(json.dumps(candleData1m, indent=4, sort_keys=False))
                 growth5m:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["5m"]=growth5m
 
+                # candles for 1h
                 candleData=self.spotClient.klines(symbol=symbolName,interval="1h",limit=2)
                 growth1h:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["1h"]=growth1h
 
+                # candles for 1d
                 candleData=self.spotClient.klines(symbol=symbolName,interval="1d",limit=2)
                 growth1d:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["1d"]=growth1d
@@ -219,8 +224,26 @@ class BinanceDataSet:
                 newSymbol["volume"]=float(volume)
                 newSymbol["quoteAsset"]=quoteAsset
 
+                # candles for 1m -> just for calaculation of immediate interactions
+                candleData=self.spotClient.klines(symbol=symbolName,interval="1m",limit=30)
+                # get all highs, lows
+                highs, lows, closes = [], [], []
+                for candle in candleData:
+                    highs.append(float(candle[2]))
+                    lows.append(float(candle[3]))
+                    closes.append(float(candle[4]))
+
+                # aroon function
+                aroondown, aroonup = talib.AROON(numpy.array(highs), numpy.array(lows), timeperiod=14)
+                newSymbol["aroonup"] = aroonup[-1]
+                newSymbol["aroondown"] = aroondown[-1]
+
+                # RSI
+                rsi = talib.RSI(numpy.array(closes), timeperiod=7)
+                newSymbol["rsi"] = rsi[-1]
+
                 # rate the symbol 
-                newSymbol["rated"]=growth1d*2+growth1h*3+growth5m*1
+                newSymbol["rated"]= (growth1d*2 + growth1h*3 + growth5m*1)
                 
                 # add to unsorted list
                 unsortedSymbols.append(newSymbol)
@@ -230,7 +253,7 @@ class BinanceDataSet:
         # sort them
         print("Sorting by rate")
         sortedList = sorted(unsortedSymbols, key=itemgetter('rated'))
-
+        
         # show them
         for symbol in sortedList:
             symbolName=symbol["name"]
@@ -243,8 +266,7 @@ class BinanceDataSet:
             color2=Colors.getColorByGLTZero(v2)
             color3=Colors.getColorByGLTZero(v3)
 
-            print("%8s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f %s" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"],
-            symbol["quoteAsset"]))
+            print("%8s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f %s, rsi: %.0f, aroonup: %.0f, aroondown: %.0f" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"],symbol["quoteAsset"],symbol["rsi"],symbol["aroonup"],symbol["aroondown"]))
 
 
     # Snapshots
