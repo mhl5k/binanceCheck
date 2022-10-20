@@ -2,9 +2,7 @@
 # License: MIT
 # Author: mhl5k
 
-__version__ = "0.11"
-
-from turtle import color
+__version__ = "0.12"
 
 
 class Colors:
