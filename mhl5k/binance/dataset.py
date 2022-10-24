@@ -319,9 +319,9 @@ class BinanceDataSet:
             color=Colors.getColorByGLTZero(diff)
 
             daystext=""
-            if days>=1:
-                percPerDay=perc/days
-                daystext="%6d %9.4f%%" % (days,percPerDay)
+            if days<1: days=1
+            percPerDay=perc/days
+            daystext="%6d %9.4f%%" % (days,percPerDay)
 
             # header when requested
             if headerTitle!="":
