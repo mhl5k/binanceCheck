@@ -1,22 +1,21 @@
 # class to handle Binance crypto values
 # License: MIT
 # Author: mhl5k
-# 
 
-from binance.spot import Spot as SpotClient
 import json
 import logging
 
+from binance.spot import Spot as SpotClient
+
 
 class Crypto:
-
-    #sahred across instances
+    # shared across instances
     expectedGrowthPercentage:float=0.001
 
     def getTotal(self) -> float:
-        return self.orderWalletTotal+self.liquidSwapValue+self.savingsWalletFlexible
+        return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnStaking+self.earnPlan
 
-    def addToOrderWalletValue(self,toAddFree:float,toAddLocked:float):
+    def addToWalletAndOrderValue(self,toAddFree:float,toAddLocked:float):
         self.orderWalletFree+=toAddFree
         self.orderWalletLocked+=toAddLocked
         self.orderWalletTotal+=toAddFree+toAddLocked
@@ -24,9 +23,15 @@ class Crypto:
     def addToLiquidityValue(self,toAdd:float):
         self.liquidSwapValue+=toAdd
 
-    def addToSavingsWalletFlexible(self,toAdd:float):
-        self.savingsWalletFlexible+=toAdd
+    def addToFlexible(self,toAdd:float):
+        self.earnFlexible+=toAdd
 
+    def addToStaking(self,toAdd:float):
+        self.earnStaking+=toAdd
+
+    def addToPlan(self,toAdd:float):
+        self.earnPlan+=toAdd
+        
     def addToPaymentDeposit(self,toAdd:float):
         self.paymentDeposit+=toAdd
 
@@ -39,25 +44,26 @@ class Crypto:
 
     def printValues(self):
         total=self.getTotal()
-        print("%s: orderWallet: %.8f, liquidValue: %.8f, savingsValue: %.8f" %  
-            (self.name,self.orderWalletTotal,self.liquidSwapValue,self.savingsWalletFlexible, 
-            ) )
-        print("total: %.8f, grow0.1: %.8f inBTC: %.8f, growBTC0.1: %.8f" % 
-            (total, total*self.expectedGrowthPercentage, self.totalBTCValue, self.totalBTCValue*self.expectedGrowthPercentage) )
-
+        print("%s: orderWallet: %.8f, liquidValue: %.8f, savingsValue: %.8f" % (self.name,self.orderWalletTotal,self.liquidSwapValue,self.earnFlexible))
+        print("total: %.8f, grow0.1: %.8f inBTC: %.8f, growBTC0.1: %.8f" % (total, total*self.expectedGrowthPercentage, self.totalBTCValue, self.totalBTCValue*self.expectedGrowthPercentage))
 
     def toJSON(self) -> dict:
         jsonDict = {
+            # V1
             "asset": self.name,
             "orderWalletFree": "{:.8f}".format(self.orderWalletFree),
             "orderWalletLocked": "{:.8f}".format(self.orderWalletLocked),
             "orderWalletTotal": "{:.8f}".format(self.orderWalletTotal),
+            "savingsWalletFlexible": "{:.8f}".format(self.earnFlexible),
             "liquidSwapValue": "{:.8f}".format(self.liquidSwapValue),
-            "savingsWalletFlexible": "{:.8f}".format(self.savingsWalletFlexible),
             "totalValue": "{:.8f}".format(self.getTotal()),
             "expectedGrowthPercentage": "{:.8f}".format(self.getTotal()*self.expectedGrowthPercentage),
             "totalBTCValue": "{:.8f}".format(self.totalBTCValue),
+            # V2
             "paymentDeposit": "{:.8f}".format(self.paymentDeposit),
+            # V3
+            "earnStaking": "{:.8f}".format(self.earnStaking),
+            "earnPlan": "{:.8f}".format(self.earnPlan),
         }
         logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
         return jsonDict
@@ -68,11 +74,16 @@ class Crypto:
         self.orderWalletLocked=float(jsonContent["orderWalletLocked"])
         self.orderWalletTotal=float(jsonContent["orderWalletTotal"])
         self.liquidSwapValue=float(jsonContent["liquidSwapValue"])
-        self.savingsWalletFlexible=float(jsonContent["savingsWalletFlexible"])        
+        self.earnFlexible=float(jsonContent["savingsWalletFlexible"])
         self.totalBTCValue=float(jsonContent["totalBTCValue"])
         # version 2
         if "paymentDeposit" in jsonContent:
             self.paymentDeposit=float(jsonContent["paymentDeposit"])
+        # version 3
+        if "earnStaking" in jsonContent:
+            self.earnStaking=float(jsonContent["earnStaking"])
+        if "earnPlan" in jsonContent:
+            self.earnPlan=float(jsonContent["earnPlan"])
 
     # return price/value for a given crypto name and amount
     # default conversion is to BTC, but can every crypto
@@ -80,11 +91,10 @@ class Crypto:
     # can be called from outside
     def getPriceForCrypto(self,fromCrypto: str, fromCryptoAmount: float, toCrypto: str = "BTC") -> float:
         valueForCrypto=0.0
-        tickerMessage=""
         retry=True
         while retry:
             retry=False
-            logging.debug("Try to convert %.8f %s to %s" % (fromCryptoAmount, fromCrypto, toCrypto) )
+            logging.debug("Try to convert %.8f %s to %s" % (fromCryptoAmount, fromCrypto, toCrypto))
             if fromCrypto==toCrypto:
                 ticker=toCrypto+" given, no conversion ;-)"
                 valueForCrypto=fromCryptoAmount
@@ -118,7 +128,6 @@ class Crypto:
         logging.debug("%s price: %.8f" % (toCrypto,valueForCrypto) )
         return valueForCrypto
 
-
     def __init__(self, setName:str, setSpotClient:SpotClient):
         self.name=setName
         self.spotClient=setSpotClient
@@ -131,9 +140,9 @@ class Crypto:
         self.orderWalletTotal:float = 0.0
 
         self.liquidSwapValue:float = 0.0
-        self.savingsWalletFlexible:float = 0.0
+        self.earnFlexible:float = 0.0
+        self.earnStaking:float = 0.0
+        self.earnPlan:float = 0.0
 
         self.paymentDeposit:float = 0.0
         self.paymentWithdraw:float = 0.0
-
-    

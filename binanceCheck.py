@@ -1,4 +1,4 @@
-# gets all values from Binance and puts it into an DB 
+# gets all values from Binance and puts it into an DB
 # to be used by excel or whatever
 # License: MIT
 # Author: mhl5k
@@ -10,24 +10,24 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 from mhl5k.app import App
 
-VERSION = "0.13"
+VERSION = "0.20"
 
 # Functions and constants
 # ------------------------
 
-APIURL="https://api.binance.com"
+APIURL = "https://api.binance.com"
 
 # Main start up
 # -------------
 App.printName(version=VERSION)
 
-settings=Settings()
+settings = Settings()
 
 config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())
 
 try:
     # Binance Account Data Set
-    binanceAccountDataSet=BinanceDataSet(settings)
+    binanceAccountDataSet = BinanceDataSet(settings)
     binanceAccountDataSet.loadData()
     binanceAccountDataSet.gatherNewDataSet()
     binanceAccountDataSet.saveData()

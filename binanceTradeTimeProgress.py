@@ -35,7 +35,7 @@ config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())
 try:
     # Binance Account Data Set
     binanceAccountDataSet=BinanceDataSet(settings)
-    binanceAccountDataSet.showTradeTimeProgress(filter=argFilter)
+    binanceAccountDataSet.showTradeTimeProgress(filterVal=argFilter)
 
 except Exception as E:
     print("Error: %s" % E)
