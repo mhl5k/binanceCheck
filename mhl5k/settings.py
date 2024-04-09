@@ -8,6 +8,7 @@ from .files import Files
 
 __version__ = "0.8"
 
+
 class Settings:
 
     # DO NOT CHANGE SETTINGS HERE!
@@ -41,11 +42,10 @@ class Settings:
             self.load()
 
 
-
 # Test function for module  
 def _test():
     # tests
-    
+
     # end
     print(__file__+" "+__version__+": All module tests did run fine.")
 
