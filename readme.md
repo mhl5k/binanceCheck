@@ -2,8 +2,8 @@
 ## used for
 checks your binance account with the given API key.
 
-* binanceCheck: It collects all currencies you have in savings (flexibel),
-liquid swap and your amounts in the wallet used for spot orders. It shows the growth across datasets.
+* binanceCheck: It collects all currencies you have in wallet, earn flexibel and staking,
+and your amounts in the wallet used for spot orders. It shows the growth across datasets.
 * binanceTradeTimeProgress: Checks all trading pairs, rates and prints 5m, 1h, 1d growth. 
 You can specify parts of trading pairs as parameter e.g. BTC, ETH, ETHBTC, etc.
 
@@ -23,8 +23,7 @@ pair available, Crypto/USDT or USDT/crypto pair is checked first,
 and then USDT/BTC is used.
 
 ## open requests, issues
-* cannot show locked savings yet (could not find any API yet)
-* cannot show locked stakings yet (could not find any API yet)
+* liquid removed (API removal)
 
 ## API requirements
 The program requires an Binance API key and API secret.
