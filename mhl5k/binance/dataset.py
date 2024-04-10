@@ -209,6 +209,7 @@ class BinanceDataSet:
         for symbol in symbols:
             # name
             symbolName=symbol["symbol"]
+            logging.debug(f"Checking symbol {symbolName}")
 
             # print out state of gathering
             curNr+=1
@@ -221,26 +222,35 @@ class BinanceDataSet:
 
             # collect only when properties fit
             if filterVal in symbolName and isSpot is True and isTrading is True:
+
                 newSymbol=dict()
                 newSymbol["name"]=symbolName
 
                 # candles for 5m
                 candleData=self.spotClient.klines(symbol=symbolName,interval="5m",limit=2)
+                if len(candleData) < 2:
+                    continue
                 # print(json.dumps(candleData1m, indent=4, sort_keys=False))
                 growth5m:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["5m"]=growth5m
 
                 # candles for 1h
                 candleData=self.spotClient.klines(symbol=symbolName,interval="1h",limit=2)
+                if len(candleData) < 2:
+                    continue
                 growth1h:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["1h"]=growth1h
 
                 # candles for 1d
                 candleData=self.spotClient.klines(symbol=symbolName,interval="1d",limit=2)
+                if len(candleData) < 2:
+                    continue
                 growth1d:float=getCandleGrowth(candleData[0][4],candleData[1][4])
                 newSymbol["1d"]=growth1d
 
                 # volume rate of current 1d
+                if len(candleData) < 2:
+                    continue
                 volume=candleData[1][7]
                 newSymbol["volume"]=float(volume)
                 newSymbol["quoteAsset"]=quoteAsset
@@ -269,7 +279,7 @@ class BinanceDataSet:
                 # add to unsorted list
                 unsortedSymbols.append(newSymbol)
 
-        print("%d symbols done %20s" % (nrOfSymbols," "), flush=True)
+        print("%d/%d symbols done %20s" % (len(unsortedSymbols),nrOfSymbols," "), flush=True)
 
         # sort them
         print("Sorting by rate")
