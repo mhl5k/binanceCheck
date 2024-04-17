@@ -10,7 +10,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 from mhl5k.app import App
 
-VERSION = "0.20"
+VERSION = "0.30"
 
 # Functions and constants
 # ------------------------
@@ -23,7 +23,8 @@ App.printName(version=VERSION)
 
 settings = Settings()
 
-config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())
+logging.basicConfig(filename=Files.getLoggingFilenameWithPath(extension="Check"),level=logging.DEBUG,filemode="w")
+config_logging(logging, logging.DEBUG)
 
 try:
     # Binance Account Data Set

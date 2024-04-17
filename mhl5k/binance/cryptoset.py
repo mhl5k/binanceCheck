@@ -1,17 +1,56 @@
 # class to handle Binance crypto values
 # License: MIT
 # Author: mhl5k
-#  
 
-from binance.spot import Spot as SpotClient
-from ..binance.crypto import Crypto
 from datetime import datetime
 import json
 import logging
 import uuid
 
-        
+from binance.spot import Spot as SpotClient
+from ..binance.crypto import Crypto
+
+
 class CryptoSet:
+
+    class CryptoSetTotal:
+
+        def __init__(self, currencyName:str):
+            self.name:str=currencyName
+            self.total:float=0.0
+            self.deposit:float=0.0
+            self.totalWithoutDeposits:float=0.0
+
+        def updateTotals(self,allCryptos:dict):
+
+            # update all cryptos totals
+            for ckey in allCryptos:
+                c:Crypto=allCryptos[ckey]
+                logging.debug("Updating crypto %s" % (ckey))
+                currentTotal=c.updateTotalIn(self.name)
+                self.total+=currentTotal.total
+                self.deposit+=currentTotal.deposit
+                self.totalWithoutDeposits+=currentTotal.totalWithoutDeposits
+
+            logging.debug(f"{self.name} Totals: {self.total:.8f}, Total-WithoutDeposit: {self.totalWithoutDeposits:.8f}")
+
+        def toJSON(self) -> dict:
+            jsonDict = {
+                # v4
+                "name": self.name,
+                "total": "{:.8f}".format(self.total),
+                "deposit": "{:.8f}".format(self.deposit),
+                "totalWithoutDeposits": "{:.8f}".format(self.totalWithoutDeposits)
+            }
+
+            logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
+            return jsonDict
+
+        def fromJSON(self, jsonContent:dict):
+            self.name=jsonContent["name"]
+            self.total=float(jsonContent["total"])
+            self.deposit=float(jsonContent["deposit"])
+            self.totalWithoutDeposits=float(jsonContent["totalWithoutDeposits"])
 
     def getCryptoByName(self, name:str) -> Crypto:
         if name in self.allCryptos:
@@ -21,63 +60,56 @@ class CryptoSet:
             self.allCryptos[name]=newCrypto
             return newCrypto
 
-
-    def printValues(self):
-        for key in self.allCryptos:
-            crypto=self.getCryptoByName(key)
-            crypto.printValues()
-            
-        print("Total: %.8f BTC" % ( self.totalBTC ) )
-        print("0,1 percent grow/day: %.8f BTC" % (self.totalBTC*Crypto.expectedGrowthPercentage ) )
-
-
-    def updateTotalBTCofSet(self):
-        print("Updating all crypto BTC values...")
-        self.totalBTC=0.0
-        self.totalBTCwithoutDeposits=0.0
-        for key in self.allCryptos:
-            crypto=self.getCryptoByName(key)
-            crypto.updateTotalBTC()
-            self.totalBTC+=crypto.totalBTCValue
-            self.totalBTCwithoutDeposits+=crypto.totalBTCValueWithoutDeposits
-            logging.debug("%s Total-BTC: %.8f" % (key, self.totalBTC))
-            logging.debug("%s Total-BTC-No-Depos: %.8f" % (key, self.totalBTCwithoutDeposits))
-
+    def updateTotalsOfSet(self):
+        print("Updating all crypto values to BTC and FIAT...")
+        self.totalBTC.updateTotals(self.allCryptos)
+        self.totalUSDT.updateTotals(self.allCryptos)
 
     def toJSON(self) -> dict:
-        jsonList:list = []
-        for key in self.allCryptos:
-            crypto:Crypto=self.allCryptos[key]
-            jsonList.append(crypto.toJSON())
+        cryptoList:list = []
+        crypto:Crypto=None
+        for crypto in self.allCryptos.values():
+            cryptoList.append(crypto.toJSON())
 
         jsonDict = {
+            # v4
             "uuid": "%s" % (self.uuid),
             "timestamp": "%s" % (self.timestamp),
             "time": "%s" % (self.time),
-            "totalBTC": "{:.8f}".format(self.totalBTC),
-            "totalBTCwithoutDeposits": "{:.8f}".format(self.totalBTCwithoutDeposits),
-            "crypto": jsonList
+            "crypto": cryptoList,
+            "totals": {
+                "BTC": self.totalBTC.toJSON(),
+                "USDT": self.totalUSDT.toJSON()
+            }
         }
 
         logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
         return jsonDict
 
     def fromJSON(self, jsonContent:dict):
-        if "uuid" in jsonContent: self.uuid=jsonContent["uuid"]
+        # v1
+        if "uuid" in jsonContent:
+            self.uuid=jsonContent["uuid"]
         self.timestamp=float(jsonContent["timestamp"])
         self.time=jsonContent["time"]
-        self.totalBTC=float(jsonContent["totalBTC"])
-        logging.debug("fromJson-Total-BTC: %.8f" % (self.totalBTC))
-        # version 2
-        if "totalBTCwithoutDeposits" in jsonContent:
-            self.totalBTCwithoutDeposits=float(jsonContent["totalBTCwithoutDeposits"])
-
+        # go through all cryptos
         cryptoDict=jsonContent["crypto"]
         for cryptoContent in cryptoDict:
             asset=cryptoContent["asset"]
             newCrypto=Crypto(setName=asset,setSpotClient=self.spotClient)
             newCrypto.fromJSON(cryptoContent)
             self.allCryptos[asset]=newCrypto
+        # v1
+        self.totalBTC.total=float(jsonContent["totalBTC"])
+        # v2
+        if "totalBTCwithoutDeposits" in jsonContent:
+            self.totalBTC.totalWithoutDeposits=float(jsonContent["totalBTCwithoutDeposits"])
+        # v3
+        if "totals" in jsonContent:
+            if "BTC" in jsonContent["totals"]:
+                self.totalBTC.fromJSON(jsonContent["totals"]["BTC"])
+            if "USDT" in jsonContent["totals"]:
+                self.totalUSDT.fromJSON(jsonContent["totals"]["USDT"])
 
     def __init__(self, setSpotClient:SpotClient):
         # binance client object
@@ -85,12 +117,6 @@ class CryptoSet:
 
         self.time:str=datetime.now()
         self.timestamp:float=self.time.timestamp()
-            
-        # totalBTC amount of all cryptos
-        self.totalBTC:float=0.0
-
-        # total without deposits
-        self.totalBTCwithoutDeposits:float=0.0
 
         # dict for all cryptos
         self.allCryptos:dict = dict()
@@ -98,3 +124,6 @@ class CryptoSet:
         # uuid
         self.uuid=uuid.uuid4()
 
+        # totals in different currencies
+        self.totalBTC=CryptoSet.CryptoSetTotal("BTC")
+        self.totalUSDT=CryptoSet.CryptoSetTotal("USDT")

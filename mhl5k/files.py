@@ -5,7 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-__version__ = "0.11"
+__version__ = "0.12"
+
 
 class Files:
 
@@ -20,8 +21,8 @@ class Files:
         filename = "database.json"
         return Files.getScriptPath()+"/"+filename
 
-    def getLoggingFilenameWithPath() -> str:
-        filename = "logging.log"
+    def getLoggingFilenameWithPath(extension:str="") -> str:
+        filename = f"logging{extension}.log"
         return Files.getScriptPath()+"/"+filename
 
     def settingsExists() -> bool:

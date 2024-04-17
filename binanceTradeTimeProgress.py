@@ -11,7 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 from mhl5k.app import App
 
-VERSION = "0.12"
+VERSION = "0.13"
 
 # Functions and constants
 # ------------------------
@@ -30,7 +30,9 @@ if len(sys.argv) == 2:
 # load settings
 settings=Settings()
 
-config_logging(logging, logging.DEBUG, Files.getLoggingFilenameWithPath())
+# logging with filemode w
+logging.basicConfig(filename=Files.getLoggingFilenameWithPath(extension="TradeTimeProgress"),level=logging.DEBUG,filemode="w")
+config_logging(logging, logging.DEBUG)
 
 try:
     # Binance Account Data Set
