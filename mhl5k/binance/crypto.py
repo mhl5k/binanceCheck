@@ -24,7 +24,7 @@ class Crypto:
             self.deposit=deposit
             self.totalWithoutDeposits=total-deposit
 
-        def toJSON(self):
+        def toJSON(self) -> dict:
             jsonDict = {
                 # v4
                 "name": self.name,
@@ -80,7 +80,7 @@ class Crypto:
 
             t:Crypto.ConvertedTotal=Crypto.ConvertedTotal(toSymbol)
             t.set(total,deposit)
-            self.allTotals[toSymbol]=t
+            self.allTotals.append(t)
 
             return t
 
@@ -89,9 +89,9 @@ class Crypto:
 
     def toJSON(self) -> dict:
         totalList:list = []
-        for key in self.allTotals:
-            t:Crypto.ConvertedTotal=self.allTotals[key]
-            totalList.append(t.toJSON())
+        entry:Crypto.ConvertedTotal = None
+        for entry in self.allTotals:
+            totalList.append(entry.toJSON())
 
         jsonDict = {
             # V1
@@ -127,7 +127,7 @@ class Crypto:
             totalBTCValue=float(jsonContent["totalBTCValue"])
             btcTotal=Crypto.ConvertedTotal("BTC")
             btcTotal.set(totalBTCValue,0.0)
-            self.allTotals["BTC"] = btcTotal
+            self.allTotals.append(btcTotal)
 
         # version 3
         if "earnStaking" in jsonContent:
@@ -136,7 +136,10 @@ class Crypto:
             self.earnPlan=float(jsonContent["earnPlan"])
         # version 4
         if "convertedTotal" in jsonContent:
-            self.allTotals=jsonContent["convertedTotal"]
+            clist:list=jsonContent["convertedTotal"]
+            for entry in clist:
+                c=Crypto.ConvertedTotal(entry["name"])
+                c.fromJSON(entry)
 
     def _getPriceFromBinance(self,symbol: str) -> float:
         # get price from gathered tickers if possible
@@ -217,4 +220,4 @@ class Crypto:
         self.allGatheredPriceTickers:dict = {}
 
         # dict for all totals in different currencies
-        self.allTotals:dict = {}
+        self.allTotals:list = []

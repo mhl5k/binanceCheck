@@ -19,9 +19,10 @@ from .cryptoset import CryptoSet
 
 
 def printSection(sec: str):
-    print("\n--------------")
+    sep="-" * len(sec)
+    print(f"\n{sep}")
     print(sec)
-    print("--------------")
+    print(sep)
 
 
 class BinanceDataSet:
@@ -310,26 +311,28 @@ class BinanceDataSet:
 
             print("Time: %d - %s - BTC: %s" % (timestamp, date, btcValue))
 
-    def analyzeGrowth(self):
+    def analyzeGrowth(self,analyzeBefore:str,analyzeLast:str):
         printSection("Analyze")
 
-        entrySet:CryptoSet
-        last:CryptoSet=None
-        before:CryptoSet=None
-        first:CryptoSet=None
-        for entrySet in self.cryptoSetList:
-            if last is None:
-                last=entrySet
-                before=entrySet
-                first=entrySet
-            logging.debug("Found dataset: %s - %s - %s" % (entrySet.time,entrySet.totalBTC,entrySet.uuid))
-            # last two
-            if entrySet.timestamp>last.timestamp:
-                before=last
-                last=entrySet
-            # first
-            if entrySet.timestamp<first.timestamp:
-                first=entrySet
+        # sort cryptoset list by date
+        self.cryptoSetList.sort(key=lambda x: x.timestamp, reverse=False)
+
+        # get first and last set
+        first:CryptoSet=self.cryptoSetList[0]
+        last:CryptoSet=self.cryptoSetList[-1]
+        # get before
+        before=self.cryptoSetList[-2] if len(self.cryptoSetList) > 1 else first
+
+        if (analyzeBefore != "before"):
+            analyzeBefore += "-01-01" if len(analyzeBefore) in [4, 7] else "-01"
+
+        if (analyzeLast != "latest"):
+            analyzeLast += "-01-01" if len(analyzeLast) in [4, 7] else "-01"
+
+        # get date of cryptoset.time which is close to date given by analyzeBefore
+        # if 2023-01 is given, then the closests date must be <= than this date
+
+        print(f"Before: {analyzeBefore}, Last: {analyzeLast}")
 
         # analyze
         print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))
@@ -403,9 +406,9 @@ class BinanceDataSet:
             showValue("∑ USDT NoDepo",setNewer.totalUSDT.totalWithoutDeposits,setOlder.totalUSDT.totalWithoutDeposits,days)
 
         # differenc growth between last and first and last and before
-        printSection("Last to first...")
+        printSection(f"Last to first... {last.time} to {first.time}")
         showDiff(last,first)
-        printSection("Last to before...")
+        printSection(f"Last to before... {last.time} to {before.time}")
         showDiff(last,before)
 
     # def printValues(self):

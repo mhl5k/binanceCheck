@@ -22,7 +22,6 @@ class CryptoSet:
             self.totalWithoutDeposits:float=0.0
 
         def updateTotals(self,allCryptos:dict):
-
             # update all cryptos totals
             for ckey in allCryptos:
                 c:Crypto=allCryptos[ckey]
@@ -67,8 +66,8 @@ class CryptoSet:
 
     def toJSON(self) -> dict:
         cryptoList:list = []
-        crypto:Crypto=None
-        for crypto in self.allCryptos.values():
+        for key in self.allCryptos:
+            crypto:Crypto=self.allCryptos[key]
             cryptoList.append(crypto.toJSON())
 
         jsonDict = {
@@ -100,7 +99,8 @@ class CryptoSet:
             newCrypto.fromJSON(cryptoContent)
             self.allCryptos[asset]=newCrypto
         # v1
-        self.totalBTC.total=float(jsonContent["totalBTC"])
+        if "totalBTC" in jsonContent:
+            self.totalBTC.total=float(jsonContent["totalBTC"])
         # v2
         if "totalBTCwithoutDeposits" in jsonContent:
             self.totalBTC.totalWithoutDeposits=float(jsonContent["totalBTCwithoutDeposits"])
