@@ -1,5 +1,5 @@
 settings.json
-database.json
+database*.json
 *.pyc
 __pycache__
 __temp__

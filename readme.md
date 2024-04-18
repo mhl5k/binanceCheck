@@ -1,4 +1,10 @@
 # binanceCheck
+
+## bugs, issues, open requests
+* Check with before-date last-date e.g. 2024-01 or 2022 2023 or 2024-01-31 (if not exists, use one before)
+* tradetime: volume in BTC calc
+* liquid removed (API removal)
+
 ## used for
 checks your binance account with the given API key.
 
@@ -21,9 +27,6 @@ When calculating the BTC total price, the pair price of
 Crypto/BTC or BTC/crypto is checked. Whenever there is no BTC
 pair available, Crypto/USDT or USDT/crypto pair is checked first,
 and then USDT/BTC is used.
-
-## open requests, issues
-* liquid removed (API removal)
 
 ## API requirements
 The program requires an Binance API key and API secret.

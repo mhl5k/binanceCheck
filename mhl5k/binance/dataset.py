@@ -10,6 +10,7 @@ import talib
 import numpy
 
 from binance.spot import Spot as SpotClient
+from binance.error import ClientError
 from ..settings import Settings
 from ..colors import Colors
 from ..files import Files
@@ -18,9 +19,10 @@ from .cryptoset import CryptoSet
 
 
 def printSection(sec: str):
-    print("\n--------------")
+    sep="-" * len(sec)
+    print(f"\n{sep}")
     print(sec)
-    print("--------------")
+    print(sep)
 
 
 class BinanceDataSet:
@@ -36,8 +38,9 @@ class BinanceDataSet:
         # check whether API works, otherwise throw an early exception
         try:
             account=self.spotClient.account()
-        except Exception as E:
-            raise Exception("Error accessing via API: %s" % E)
+            logging.debug(json.dumps(account, indent=4, sort_keys=False))
+        except ClientError as E:
+            raise E
 
         # check whether a new dataset should be gathered
         lastTimestamp=0
@@ -65,7 +68,6 @@ class BinanceDataSet:
         # Account & Order Wallet Assets
         # -----------------------------
         print("Gathering Account/Order Assets...")
-        account=self.spotClient.account()
 
         for accountAsset in account["balances"]:
             name=accountAsset["asset"]
@@ -89,7 +91,7 @@ class BinanceDataSet:
             crypto.addToStaking(float(s["amount"]))
 
         print("Gathering Earn Flexible...")
-        savings=self.spotClient.get_flexible_product_position()
+        savings=self.spotClient.get_flexible_product_position(size=100)
         # print(savings)
         for s in savings["rows"]:
             # print(s)
@@ -180,12 +182,7 @@ class BinanceDataSet:
 
         # calculate total BTC of set after gathering all cryptos
         # ------------------------------------------------------
-        newCryptoSet.updateTotalBTCofSet()
-
-        # Summary
-        # -------
-        printSection("Summary:")
-        newCryptoSet.printValues()
+        newCryptoSet.updateTotalsOfSet()
 
     def showTradeTimeProgress(self,filterVal=""):
         def getCandleGrowth(candleData1, candleData2) -> float:
@@ -210,6 +207,7 @@ class BinanceDataSet:
             # name
             symbolName=symbol["symbol"]
             logging.debug(f"Checking symbol {symbolName}")
+            logging.debug(f"{symbol}")
 
             # print out state of gathering
             curNr+=1
@@ -273,8 +271,8 @@ class BinanceDataSet:
                 rsi = talib.RSI(numpy.array(closes), timeperiod=7)
                 newSymbol["rsi"] = rsi[-1]
 
-                # rate the symbol 
-                newSymbol["rated"]= (growth1d*2 + growth1h*3 + growth5m*1)
+                # rate the symbol
+                newSymbol["rated"]= growth1d*2 + growth1h*3 + growth5m*1
 
                 # add to unsorted list
                 unsortedSymbols.append(newSymbol)
@@ -313,31 +311,33 @@ class BinanceDataSet:
 
             print("Time: %d - %s - BTC: %s" % (timestamp, date, btcValue))
 
-    def analyzeGrowth(self):
+    def analyzeGrowth(self,analyzeBefore:str,analyzeLast:str):
         printSection("Analyze")
 
-        entrySet:CryptoSet
-        last:CryptoSet=None
-        before:CryptoSet=None
-        first:CryptoSet=None
-        for entrySet in self.cryptoSetList:
-            if last is None:
-                last=entrySet
-                before=entrySet
-                first=entrySet
-            logging.debug("Found dataset: %s - %s - %s" % (entrySet.time,entrySet.totalBTC,entrySet.uuid))
-            # last two
-            if entrySet.timestamp>last.timestamp:
-                before=last
-                last=entrySet
-            # first
-            if entrySet.timestamp<first.timestamp:
-                first=entrySet
+        # sort cryptoset list by date
+        self.cryptoSetList.sort(key=lambda x: x.timestamp, reverse=False)
+
+        # get first and last set
+        first:CryptoSet=self.cryptoSetList[0]
+        last:CryptoSet=self.cryptoSetList[-1]
+        # get before
+        before=self.cryptoSetList[-2] if len(self.cryptoSetList) > 1 else first
+
+        if (analyzeBefore != "before"):
+            analyzeBefore += "-01-01" if len(analyzeBefore) in [4, 7] else "-01"
+
+        if (analyzeLast != "latest"):
+            analyzeLast += "-01-01" if len(analyzeLast) in [4, 7] else "-01"
+
+        # get date of cryptoset.time which is close to date given by analyzeBefore
+        # if 2023-01 is given, then the closests date must be <= than this date
+
+        print(f"Before: {analyzeBefore}, Last: {analyzeLast}")
 
         # analyze
-        print("First:  %s - %.8f - %s" % (first.time,first.totalBTC,first.uuid))
-        print("Before: %s - %.8f - %s" % (before.time,before.totalBTC,before.uuid))
-        print("Last:   %s - %.8f - %s" % (last.time,last.totalBTC,last.uuid))
+        print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))
+        print("Before: %s - %.8f - %s" % (before.time,before.totalBTC.total,before.uuid))
+        print("Last:   %s - %.8f - %s" % (last.time,last.totalBTC.total,last.uuid))
 
         def showValue(starttext:str, NewerValue, OlderValue, days:int=0, headerTitle=""):
             diff=NewerValue-OlderValue
@@ -355,10 +355,10 @@ class BinanceDataSet:
 
             # header when requested
             if headerTitle!="":
-                print("\n%-10s %17s %17s %17s %10s %6s %10s" % (headerTitle,"Newer","Older","Diff","Percent","Days","%/day"))
+                print("\n%-13s %17s %17s %17s %10s %6s %10s" % (headerTitle,"Newer","Older","Diff","Percent","Days","%/day"))
 
             # print values
-            print("%-10s %17.8f %17.8f %s%17.8f %9.4f%% %s%s" % (starttext,NewerValue,OlderValue,color,diff,perc,daystext,Colors.CRESET))
+            print("%-13s %17.8f %17.8f %s%17.8f %9.4f%% %s%s" % (starttext,NewerValue,OlderValue,color,diff,perc,daystext,Colors.CRESET))
 
         def showDiff(setNewer:CryptoSet, setOlder:CryptoSet):
             # days between these sets
@@ -378,10 +378,13 @@ class BinanceDataSet:
                     cryptoNewer:Crypto=setNewer.allCryptos[crypto]
 
                 showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto)
-                showValue("Wal+Flex",cryptoNewer.orderWalletTotal+cryptoNewer.earnFlexible,cryptoOlder.orderWalletTotal+cryptoOlder.earnFlexible,days)
+                showValue("Wall+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
                     showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
+
+                if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
+                    showValue("Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
 
                 if cryptoNewer.earnStaking>0.0 or cryptoOlder.earnStaking>0.0:
                     showValue("Staking",cryptoNewer.earnStaking,cryptoOlder.earnStaking,days)
@@ -397,24 +400,24 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
-            showValue("Tot-BTC",setNewer.totalBTC,setOlder.totalBTC,days,headerTitle=" ")
-            showValue("Tot-BTC-ND",setNewer.totalBTCwithoutDeposits,setOlder.totalBTCwithoutDeposits,days)
+            showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
+            showValue("∑ BTC NoDepo",setNewer.totalBTC.totalWithoutDeposits,setOlder.totalBTC.totalWithoutDeposits,days)
+            showValue("∑ USDT all",setNewer.totalUSDT.total,setOlder.totalUSDT.total,days)
+            showValue("∑ USDT NoDepo",setNewer.totalUSDT.totalWithoutDeposits,setOlder.totalUSDT.totalWithoutDeposits,days)
 
         # differenc growth between last and first and last and before
-        printSection("Last to first...")
+        printSection(f"Last to first... {last.time} to {first.time}")
         showDiff(last,first)
-        printSection("Last to before...")
+        printSection(f"Last to before... {last.time} to {before.time}")
         showDiff(last,before)
 
-    def printValues(self):
-        jsonContent=self.toJSON()
-        print(json.dumps(jsonContent, indent=4, sort_keys=False))
+    # def printValues(self):
+    #     jsonContent=self.toJSON()
+    #     print(json.dumps(jsonContent, indent=4, sort_keys=False))
 
     def fromJSON(self,jsonContent):
         entry:dict
         for entry in jsonContent["binanceDataSet"]:
-            logging.debug("from-json entry")
-            logging.debug(entry)
             newCryptoSet=CryptoSet(setSpotClient=self.spotClient)
             newCryptoSet.fromJSON(entry)
             self.cryptoSetList.append(newCryptoSet)
@@ -429,18 +432,17 @@ class BinanceDataSet:
             jsonList.append(entry.toJSON())
 
         jsonDict = {
-            "version": 2,
+            "version": 4,
             "binanceDataSet": jsonList
         }
 
-        logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
         return jsonDict
 
     def loadData(self):
         print("Loading data...")
         jsonContent:dict=dict()
         if Files.databaseExists():
-            with open(Files.getDatabaseFilenameWithPath(), "r") as infile:
+            with open(Files.getDatabaseFilenameWithPath(), "r", encoding="utf8") as infile:
                 jsonContent=json.load(infile)
                 logging.debug(jsonContent)
                 infile.close()
@@ -452,6 +454,6 @@ class BinanceDataSet:
         # print JSON for database
         jsonContent=self.toJSON()
 
-        with open(Files.getDatabaseFilenameWithPath(), "w") as outfile:
+        with open(Files.getDatabaseFilenameWithPath(), "w", encoding="utf8") as outfile:
             json.dump(jsonContent, outfile, indent=4, sort_keys=False)
             outfile.close()
