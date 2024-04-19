@@ -1,7 +1,6 @@
 # binanceCheck
 
 ## bugs, issues, open requests
-* Check with before-date last-date e.g. 2024-01 or 2022 2023 or 2024-01-31 (if not exists, use one before)
 * tradetime: volume in BTC calc
 * liquid removed (API removal)
 

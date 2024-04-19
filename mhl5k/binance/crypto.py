@@ -140,6 +140,7 @@ class Crypto:
             for entry in clist:
                 c=Crypto.ConvertedTotal(entry["name"])
                 c.fromJSON(entry)
+                self.allTotals.append(c)
 
     def _getPriceFromBinance(self,symbol: str) -> float:
         # get price from gathered tickers if possible
