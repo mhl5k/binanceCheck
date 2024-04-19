@@ -115,8 +115,9 @@ class CryptoSet:
         # binance client object
         self.spotClient=setSpotClient
 
-        self.time:str=datetime.now()
-        self.timestamp:float=self.time.timestamp()
+        currentdatetime = datetime.now()
+        self.time:str=str(currentdatetime)
+        self.timestamp:float=currentdatetime.timestamp()
 
         # dict for all cryptos
         self.allCryptos:dict = dict()
