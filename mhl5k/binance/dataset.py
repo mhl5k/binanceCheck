@@ -296,7 +296,7 @@ class BinanceDataSet:
             color2=Colors.getColorByGLTZero(v2)
             color3=Colors.getColorByGLTZero(v3)
 
-            print("%8s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f %s, rsi: %.0f, aroonup: %.0f, aroondown: %.0f" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"],symbol["quoteAsset"],symbol["rsi"],symbol["aroonup"],symbol["aroondown"]))
+            print("%12s %srate: %6.2f, %s5m: %6.2f%%, %s1h: %6.2f%%, %s1d: %6.2f%%%s, volume: %.0f %s, rsi: %.0f, aroonup: %.0f, aroondown: %.0f" % (symbolName,colorR,vR,color1,v1,color2,v2,color3,v3,Colors.CRESET,symbol["volume"],symbol["quoteAsset"],symbol["rsi"],symbol["aroonup"],symbol["aroondown"]))
 
     # Snapshots
     def snapshots(self):

@@ -1,4 +1,4 @@
 
-__version__ = "0.90"
+__version__ = "0.91"
 
 print("Using mhl5k-binance "+__version__)
