@@ -19,7 +19,6 @@ class CryptoSet:
             self.name:str=currencyName
             self.total:float=0.0
             self.deposit:float=0.0
-            self.totalWithoutDeposits:float=0.0
 
         def updateTotals(self,allCryptos:dict):
             # update all cryptos totals
@@ -29,9 +28,8 @@ class CryptoSet:
                 currentTotal=c.updateTotalIn(self.name)
                 self.total+=currentTotal.total
                 self.deposit+=currentTotal.deposit
-                self.totalWithoutDeposits+=currentTotal.totalWithoutDeposits
 
-            logging.debug(f"{self.name} Totals: {self.total:.8f}, Total-WithoutDeposit: {self.totalWithoutDeposits:.8f}")
+            logging.debug(f"{self.name} Totals: {self.total:.8f}, Total-Deposit: {self.deposit:.8f}")
 
         def toJSON(self) -> dict:
             jsonDict = {
@@ -39,7 +37,6 @@ class CryptoSet:
                 "name": self.name,
                 "total": "{:.8f}".format(self.total),
                 "deposit": "{:.8f}".format(self.deposit),
-                "totalWithoutDeposits": "{:.8f}".format(self.totalWithoutDeposits)
             }
 
             logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
@@ -49,7 +46,6 @@ class CryptoSet:
             self.name=jsonContent["name"]
             self.total=float(jsonContent["total"])
             self.deposit=float(jsonContent["deposit"])
-            self.totalWithoutDeposits=float(jsonContent["totalWithoutDeposits"])
 
     def getCryptoByName(self, name:str) -> Crypto:
         if name in self.allCryptos:
@@ -58,6 +54,10 @@ class CryptoSet:
             newCrypto=Crypto(setName=name,setSpotClient=self.spotClient)
             self.allCryptos[name]=newCrypto
             return newCrypto
+
+    def sortByName(self):
+        # sort the dict
+        self.allCryptos = dict(sorted(self.allCryptos.items(), key=lambda x: x[0]))
 
     def updateTotalsOfSet(self):
         print("Updating all crypto values to BTC and FIAT...")
@@ -101,9 +101,6 @@ class CryptoSet:
         # v1
         if "totalBTC" in jsonContent:
             self.totalBTC.total=float(jsonContent["totalBTC"])
-        # v2
-        if "totalBTCwithoutDeposits" in jsonContent:
-            self.totalBTC.totalWithoutDeposits=float(jsonContent["totalBTCwithoutDeposits"])
         # v3
         if "totals" in jsonContent:
             if "BTC" in jsonContent["totals"]:

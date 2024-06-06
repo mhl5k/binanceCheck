@@ -11,7 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.30"
+VERSION = "0.31"
 
 # Functions and constants
 # ------------------------
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         print("Done")
 
         # analyze datasets
-        binanceAccountDataSet.analyzeGrowth(set1Date, set2Date)
+        binanceAccountDataSet.analyzeGrowthAndShow(set1Date, set2Date)
 
     except Exception as E:
         print("Error: %s" % E)
@@ -57,4 +57,3 @@ if __name__ == "__main__":
 
     # exit
     exit(0)
-
