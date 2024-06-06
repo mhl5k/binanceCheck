@@ -1,8 +1,8 @@
 # binanceCheck
 
 ## bugs, issues, open requests
-* tradetime: volume in BTC calc
-* liquid removed (API removal)
+* liquid earning removed (API has been removed)
+* recurring buy not visible in FIAT deposit (no API endpoint yet)
 
 ## used for
 checks your binance account with the given API key.
@@ -32,11 +32,6 @@ The program requires an Binance API key and API secret.
 The binance API must enable the "Read" functionality only.
 
 ## If you find it useful...
-... in any way, you can send me a coffee.
-* https://www.buymeacoffee.com/mhl5k
-
-or
-* RVN:  REUCghmYBrmzq2VhTkkXcEr4HZjHinZuWM
-* DOGE: DHuDg2CNALDrYnAK4FYiodYN1tioSVbk6R
+DOGE: DHuDg2CNALDrYnAK4FYiodYN1tioSVbk6R
 
 ## the end

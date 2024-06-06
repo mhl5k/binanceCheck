@@ -17,12 +17,10 @@ class Crypto:
             self.name:str=name
             self.total:float=0.0
             self.deposit:float=0.0
-            self.totalWithoutDeposits:float=0.0
 
         def set(self, total:float, deposit:float):
             self.total=total
             self.deposit=deposit
-            self.totalWithoutDeposits=total-deposit
 
         def toJSON(self) -> dict:
             jsonDict = {
@@ -30,7 +28,6 @@ class Crypto:
                 "name": self.name,
                 "total": "{:.8f}".format(self.total),
                 "deposit": "{:.8f}".format(self.deposit),
-                "totalWithoutDeposits": "{:.8f}".format(self.totalWithoutDeposits)
             }
 
             return jsonDict
@@ -39,7 +36,6 @@ class Crypto:
             self.name=jsonContent["name"]
             self.total=float(jsonContent["total"])
             self.deposit=float(jsonContent["deposit"])
-            self.totalWithoutDeposits=float(jsonContent["totalWithoutDeposits"])
 
     # shared across instances
     expectedGrowthPercentage:float=0.001
@@ -64,11 +60,11 @@ class Crypto:
     def addToPlan(self,toAdd:float):
         self.earnPlan+=toAdd
 
-    def addToPaymentDeposit(self,toAdd:float):
-        self.paymentDeposit+=toAdd
+    def addToPaymentDeposit(self,toDeposit:float):
+        self.paymentDeposit+=toDeposit
 
-    def addToPaymentWithdraw(self,toAdd:float):
-        self.paymentWithdraw+=toAdd
+    def addToPaymentWithdraw(self,toWithdraw:float):
+        self.paymentWithdraw+=toWithdraw
 
     def updateTotalIn(self,toSymbol:str) -> ConvertedTotal:
         try:
