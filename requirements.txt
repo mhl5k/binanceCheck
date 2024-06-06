@@ -1,3 +1,2 @@
 binance-connector
 requests
-ta-lib
