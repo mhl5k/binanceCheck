@@ -41,7 +41,7 @@ class Crypto:
     expectedGrowthPercentage:float=0.001
 
     def getTotal(self) -> float:
-        return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnStaking+self.earnPlan
+        return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnStaking
 
     def addToWalletAndOrderValue(self,toAddFree:float,toAddLocked:float):
         self.orderWalletFree+=toAddFree
