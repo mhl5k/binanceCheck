@@ -8,12 +8,12 @@ import logging
 
 from binance.spot import Spot as SpotClient
 from binance.error import ClientError
-from ..settings import Settings
-from ..colors import Colors
-from ..files import Files
-from ..app import App
-from .crypto import Crypto
-from .cryptoset import CryptoSet
+from mhl5k.settings import Settings
+from mhl5k.colors import Colors
+from mhl5k.files import Files
+from mhl5k.app import App
+from crypto import Crypto
+from cryptoset import CryptoSet
 
 
 def printSection(sec: str):
@@ -304,6 +304,7 @@ class BinanceDataSet:
                     cryptoNewer:Crypto=setNewer.allCryptos[crypto]
 
                 showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto)
+                showValue("Total-Plan",cryptoNewer.getTotal()-cryptoNewer.earnPlan,cryptoOlder.getTotal()-cryptoOlder.earnPlan,days)
                 showValue("Wall+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
