@@ -8,7 +8,7 @@ import logging
 import uuid
 
 from binance.spot import Spot as SpotClient
-from ..binance.crypto import Crypto
+from crypto import Crypto
 
 
 class CryptoSet:

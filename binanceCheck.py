@@ -6,12 +6,12 @@
 import logging
 import argparse
 from binance.lib.utils import config_logging
-from mhl5k.binance.dataset import BinanceDataSet
+from dataset import BinanceDataSet
 from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.32"
+VERSION = "0.40"
 
 # Functions and constants
 # ------------------------
