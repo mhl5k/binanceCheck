@@ -220,7 +220,7 @@ class BinanceDataSet:
 
         return retItem
 
-    def analyzeGrowthAndShow(self,set1Date:str,set2Date:str):
+    def analyzeGrowthAndShow(self,setOlderDate:str,setNewerDate:str):
         printSection("Analyze")
 
         # sort cryptoset list by date
@@ -229,13 +229,13 @@ class BinanceDataSet:
         # get first and last set
         first:CryptoSet=self.cryptoSetList[0]
 
-        if set2Date == "latest":
+        if setNewerDate == "latest":
             last:CryptoSet=self.cryptoSetList[-1]
         else:
-            set2Date=self._makeValidDate(set2Date)
-            last=self._getCryptoSetByDate(set2Date)
+            setNewerDate=self._makeValidDate(setNewerDate)
+            last=self._getCryptoSetByDate(setNewerDate)
 
-        if set1Date == "before":
+        if setOlderDate == "before":
             # get index of object "last" in list
             i=0
             for i, item in enumerate(self.cryptoSetList):
@@ -244,8 +244,8 @@ class BinanceDataSet:
             # get one object before
             before=self.cryptoSetList[i-1] if i>0 else first
         else:
-            set1Date=self._makeValidDate(set1Date)
-            before=self._getCryptoSetByDate(set1Date)
+            setOlderDate=self._makeValidDate(setOlderDate)
+            before=self._getCryptoSetByDate(setOlderDate)
 
         # check if the earliest is not found
         if before is None or last is None:
@@ -255,7 +255,7 @@ class BinanceDataSet:
         if before.time > last.time:
             last, before = before, last
 
-        logging.debug(f"Set1: {set1Date}, Set2: {set2Date}")
+        logging.debug(f"Set1: {setOlderDate}, Set2: {setNewerDate}")
 
         # analyze
         print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))
