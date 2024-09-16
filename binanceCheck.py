@@ -11,7 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.40"
+VERSION = "0.41"
 
 # Functions and constants
 # ------------------------
@@ -24,14 +24,14 @@ if __name__ == "__main__":
 
     # parse command line
     parser = argparse.ArgumentParser(description='Check binance account, gathers data and compare values between dates.')
-    parser.add_argument('-1', '--set1', type=str, help='Date of dataset 1')
-    parser.add_argument('-2', '--set2', type=str, help='Date of dataset 2')
+    parser.add_argument('-o', '--setolder', type=str, help='Date of older dataset, YYYY-MM-DD | YYYY-MM | YYYY')
+    parser.add_argument('-n', '--setnewer', type=str, help='Date of newer dataset, YYYY-MM-DD | YYYY-MM | YYYY')
     parser.add_argument('-g', '--no-gather', action='store_true', help='Do not gather new dataset')
 
     args = parser.parse_args()
 
-    set1Date = args.set1 if args.set1 else "before"
-    set2Date = args.set2 if args.set2 else "latest"
+    setOlderDate = args.setolder if args.setolder else "before"
+    setNewerDate = args.setnewer if args.setnewer else "latest"
 
     # check account, save data, analyze difference/growth
     try:
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         print("Done")
 
         # analyze datasets
-        binanceAccountDataSet.analyzeGrowthAndShow(set1Date, set2Date)
+        binanceAccountDataSet.analyzeGrowthAndShow(setOlderDate, setNewerDate)
 
     except Exception as E:
         print("Error: %s" % E)
