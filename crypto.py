@@ -41,7 +41,7 @@ class Crypto:
     expectedGrowthPercentage:float=0.001
 
     def getTotal(self) -> float:
-        return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnStaking
+        return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnLocked
 
     def addToWalletAndOrderValue(self,toAddFree:float,toAddLocked:float):
         self.orderWalletFree+=toAddFree
@@ -54,8 +54,8 @@ class Crypto:
     def addToFlexible(self,toAdd:float):
         self.earnFlexible+=toAdd
 
-    def addToStaking(self,toAdd:float):
-        self.earnStaking+=toAdd
+    def addToLocked(self,toAdd:float):
+        self.earnLocked+=toAdd
 
     def addToPlan(self,toAdd:float):
         self.earnPlan+=toAdd
@@ -95,17 +95,18 @@ class Crypto:
             "orderWalletFree": "{:.8f}".format(self.orderWalletFree),
             "orderWalletLocked": "{:.8f}".format(self.orderWalletLocked),
             "orderWalletTotal": "{:.8f}".format(self.orderWalletTotal),
-            "savingsWalletFlexible": "{:.8f}".format(self.earnFlexible),
             "liquidSwapValue": "{:.8f}".format(self.liquidSwapValue),
             "totalValue": "{:.8f}".format(self.getTotal()),
             "expectedGrowthPercentage": "{:.8f}".format(self.getTotal()*self.expectedGrowthPercentage),
             # V2
             "paymentDeposit": "{:.8f}".format(self.paymentDeposit),
             # V3
-            "earnStaking": "{:.8f}".format(self.earnStaking),
             "earnPlan": "{:.8f}".format(self.earnPlan),
             # V4
-            "convertedTotal": totalList
+            "convertedTotal": totalList,
+            # V5
+            "earnFlexible": "{:.8f}".format(self.earnFlexible),
+            "earnLocked": "{:.8f}".format(self.earnLocked),
         }
 
         logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
@@ -117,8 +118,9 @@ class Crypto:
         self.orderWalletLocked=float(jsonContent["orderWalletLocked"])
         self.orderWalletTotal=float(jsonContent["orderWalletTotal"])
         self.liquidSwapValue=float(jsonContent["liquidSwapValue"])
-        self.earnFlexible=float(jsonContent["savingsWalletFlexible"])
         # version 1, migrated in 4 to convertedTotal
+        if "savingsWalletFlexible" in jsonContent:
+            self.earnFlexible=float(jsonContent["savingsWalletFlexible"])
         if "totalBTCValue" in jsonContent:
             totalBTCValue=float(jsonContent["totalBTCValue"])
             btcTotal=Crypto.ConvertedTotal("BTC")
@@ -127,7 +129,7 @@ class Crypto:
 
         # version 3
         if "earnStaking" in jsonContent:
-            self.earnStaking=float(jsonContent["earnStaking"])
+            self.earnLocked=float(jsonContent["earnStaking"])
         if "earnPlan" in jsonContent:
             self.earnPlan=float(jsonContent["earnPlan"])
         # version 4
@@ -137,6 +139,11 @@ class Crypto:
                 c=Crypto.ConvertedTotal(entry["name"])
                 c.fromJSON(entry)
                 self.allTotals.append(c)
+        # version 5
+        if "earnFlexible" in jsonContent:
+            self.earnFlexible=float(jsonContent["earnFlexible"])
+        if "earnLocked" in jsonContent:
+            self.earnLocked=float(jsonContent["earnLocked"])
 
     def _getPriceFromBinance(self,symbol: str) -> float:
         # get price from gathered tickers if possible
@@ -207,7 +214,7 @@ class Crypto:
 
         self.liquidSwapValue:float = 0.0
         self.earnFlexible:float = 0.0
-        self.earnStaking:float = 0.0
+        self.earnLocked:float = 0.0
         self.earnPlan:float = 0.0
 
         self.paymentDeposit:float = 0.0
