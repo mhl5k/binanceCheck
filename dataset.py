@@ -79,19 +79,19 @@ class BinanceDataSet:
 
         # Savings
         # -------
-        print("Gathering Earn Staking...")
-        savings=self.spotClient.staking_product_position(product="STAKING")
-        # print(savings)
-        for s in savings:
+        print("Gathering Earn Locked...")
+        locked = self.spotClient.get_locked_product_position(size=100)
+        logging.debug(locked)
+        for s in locked["rows"]:
             # print(s)
             name=s["asset"]
             crypto=newCryptoSet.getCryptoByName(name)
-            crypto.addToStaking(float(s["amount"]))
+            crypto.addToLocked(float(s["amount"]))
 
         print("Gathering Earn Flexible...")
-        savings=self.spotClient.get_flexible_product_position(size=100)
-        # print(savings)
-        for s in savings["rows"]:
+        flexible=self.spotClient.get_flexible_product_position(size=100)
+        logging.debug(flexible)
+        for s in flexible["rows"]:
             # print(s)
             name=s["asset"]
             crypto=newCryptoSet.getCryptoByName(name)
@@ -99,7 +99,7 @@ class BinanceDataSet:
 
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
-        # print(plans)
+        logging.debug(plans)
         for s in plans["plans"]:
             planID=s["planId"]
             params={"planId": planID}
@@ -313,8 +313,8 @@ class BinanceDataSet:
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
                     showValue("Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
 
-                if cryptoNewer.earnStaking>0.0 or cryptoOlder.earnStaking>0.0:
-                    showValue("Staking",cryptoNewer.earnStaking,cryptoOlder.earnStaking,days)
+                if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
+                    showValue("Staking",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
                     showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)

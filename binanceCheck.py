@@ -11,7 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.41"
+VERSION = "0.42"
 
 # Functions and constants
 # ------------------------
@@ -21,6 +21,7 @@ APIURL = "https://api.binance.com"
 
 # Main start up
 if __name__ == "__main__":
+    print(f"Binance Check {VERSION}")
 
     # parse command line
     parser = argparse.ArgumentParser(description='Check binance account, gathers data and compare values between dates.')
