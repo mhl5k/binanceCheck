@@ -109,7 +109,7 @@ class BinanceDataSet:
 
             hasLockedCount=int(lockedProductList["total"])
             crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
-            logging.debug(hasLockedCount, soldOut, crypto.hasLockedPossibility)
+            logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}")
 
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
