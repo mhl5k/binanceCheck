@@ -97,6 +97,10 @@ class BinanceDataSet:
             crypto=newCryptoSet.getCryptoByName(name)
             crypto.addToFlexible(float(s["totalAmount"]))
 
+            # check whether locked is possible to mark it
+            hasLocked=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=10)
+            crypto.hasLockedPossibility=int(hasLocked["total"])>0
+
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
         logging.debug(plans)
@@ -311,10 +315,13 @@ class BinanceDataSet:
                     showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
-                    showValue("Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
+                    showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
-                    showValue("Staking",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
+                    showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
+                else:
+                    if cryptoNewer.hasLockedPossibility:
+                        print("%sEarn-Locked is available, but not used%s" % (Colors.CRED,Colors.CRESET))
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
                     showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)

@@ -225,3 +225,6 @@ class Crypto:
 
         # dict for all totals in different currencies
         self.allTotals:list = []
+
+        # set whether crypto has a earn locked possibility
+        self.hasLockedPossibility:bool = False
