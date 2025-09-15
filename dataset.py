@@ -15,6 +15,8 @@ from mhl5k.app import App
 from crypto import Crypto
 from cryptoset import CryptoSet
 
+DATASETDEBUG = False
+
 
 def printSection(sec: str):
     sep="-" * len(sec)
@@ -98,8 +100,16 @@ class BinanceDataSet:
             crypto.addToFlexible(float(s["totalAmount"]))
 
             # check whether locked is possible to mark it
-            hasLocked=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=10)
-            crypto.hasLockedPossibility=int(hasLocked["total"])>0
+            lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=10)
+            logging.debug(lockedProductList)
+            soldOut=0
+            for s in lockedProductList["rows"]:
+                if s["detail"]["isSoldOut"]==True:
+                    soldOut+=1
+
+            hasLockedCount=int(lockedProductList["total"])
+            crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
+            logging.debug(hasLockedCount, soldOut, crypto.hasLockedPossibility)
 
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
@@ -179,7 +189,8 @@ class BinanceDataSet:
 
         # calculate total BTC of set after gathering all cryptos
         # ------------------------------------------------------
-        newCryptoSet.updateTotalsOfSet()
+        if not DATASETDEBUG:
+            newCryptoSet.updateTotalsOfSet()
 
     # Snapshots
     def snapshots(self):
