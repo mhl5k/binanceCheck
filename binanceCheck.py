@@ -11,7 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.44"
+VERSION = "0.50"
 
 # Functions and constants
 # ------------------------

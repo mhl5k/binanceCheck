@@ -5,6 +5,7 @@
 from datetime import datetime
 import json
 import logging
+import numpy as np
 
 from binance.spot import Spot as SpotClient
 from binance.error import ClientError
@@ -67,7 +68,7 @@ class BinanceDataSet:
 
         # Account & Order Wallet Assets
         # -----------------------------
-        print("Gathering Account/Order Assets...")
+        print("Gathering Spot/Order Assets...")
 
         for accountAsset in account["balances"]:
             name:str=accountAsset["asset"]
@@ -186,6 +187,36 @@ class BinanceDataSet:
                 amount=float(data["amount"])
                 crypto.addToPaymentDeposit(toDeposit=amount)
                 logging.debug("Deposit found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
+
+        print("Gathering all crypto volume trends...")
+        for crypto in newCryptoSet.allCryptos.values():
+            try:
+                volumeSymbol="USDC"
+                try:
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1d", limit=100)
+                except ClientError:
+                    volumeSymbol="BTC"
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1d", limit=100)
+
+                crypto.volumeSymbol=volumeSymbol
+
+                # prepare volumes array, remove last unclosed and remove nan
+                volumes = [float(k[5]) for k in klines[:-1]]
+                arr = np.array(volumes)
+                arr = arr[np.isfinite(arr)]
+                crypto.volume1d=arr[-1]
+
+                # Trend bestimmen (lineare Regression)
+                if len(arr) < 2:
+                    crypto.volume1dTrend="stable"
+                else:
+                    x = np.arange(len(volumes))
+                    slope, _ = np.polyfit(x, volumes, 1)
+                    crypto.volume1dTrend=np.where(slope < 0, "lowering", np.where(slope > 0, "rising", "stable"))
+
+            except ClientError as E:
+                logging.debug(f"ClientError: {E}")
+                crypto.volume1d=-1.0
 
         # calculate total BTC of set after gathering all cryptos
         # ------------------------------------------------------
@@ -320,7 +351,7 @@ class BinanceDataSet:
 
                 showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto)
                 showValue("Total-Plan",cryptoNewer.getTotal()-cryptoNewer.earnPlan,cryptoOlder.getTotal()-cryptoOlder.earnPlan,days)
-                showValue("Wall+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
+                showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
                     showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
@@ -345,15 +376,27 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
+                if cryptoNewer.volume1d > -1:
+                    color=Colors.CGREEN
+                    if any([
+                        cryptoNewer.volume1d < 10000000 and cryptoNewer.volumeSymbol == "USDC",
+                        cryptoNewer.volume1d < 10000000/120000 and cryptoNewer.volumeSymbol == "BTC",
+                    ]) and cryptoNewer.volume1dTrend == "lowering":
+                        color=Colors.CRED
+                    formatted_volume = f"{cryptoNewer.volume1d:,.0f}".replace(",", ".")
+                    print("%sVolume is %s with %s %s %s" % (color,cryptoNewer.volume1dTrend,formatted_volume,cryptoNewer.volumeSymbol,Colors.CRESET))
+                else:
+                    print("%sVolume for 1d not found for USDC nor BTC%s" % (Colors.CRED,Colors.CRESET))
+
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
             o=setOlder.totalBTC.total-setOlder.totalBTC.deposit
             showValue("∑ BTC -Depo",n,o,days)
 
-            showValue("∑ USDT all",setNewer.totalUSDT.total,setOlder.totalUSDT.total,days)
-            n=setNewer.totalUSDT.total-setNewer.totalUSDT.deposit
-            o=setOlder.totalUSDT.total-setOlder.totalUSDT.deposit
-            showValue("∑ USDT -Depo",n,o,days)
+            showValue("∑ USDC all",setNewer.totalUSDC.total,setOlder.totalUSDC.total,days)
+            n=setNewer.totalUSDC.total-setNewer.totalUSDC.deposit
+            o=setOlder.totalUSDC.total-setOlder.totalUSDC.deposit
+            showValue("∑ USDC -Depo",n,o,days)
 
         # differenc growth between last and first and last and before
         printSection(f"Last to first... {last.time} to {first.time}")

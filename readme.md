@@ -22,14 +22,14 @@ when you are using Binance Earn or Trading them.
 
 When calculating the BTC total price, the pair price of
 Crypto/BTC or BTC/crypto is checked. Whenever there is no BTC
-pair available, Crypto/USDT or USDT/crypto pair is checked first,
-and then USDT/BTC is used.
+pair available, Crypto/USDC or USDC/crypto pair is checked first,
+and then USDC/BTC is used.
 
 ## API requirements
 The program requires an Binance API key and API secret.
 The binance API must enable the "Read" functionality only.
 
 ## If you find it useful...
-DOGE: DHuDg2CNALDrYnAK4FYiodYN1tioSVbk6R
+DOGE: D9p216o9FmYwJXr6PHoDFGM2jgKgVCGrbE
 
 ## the end

@@ -62,7 +62,7 @@ class CryptoSet:
     def updateTotalsOfSet(self):
         print("Updating all crypto values to BTC and FIAT...")
         self.totalBTC.updateTotals(self.allCryptos)
-        self.totalUSDT.updateTotals(self.allCryptos)
+        self.totalUSDC.updateTotals(self.allCryptos)
 
     def toJSON(self) -> dict:
         cryptoList:list = []
@@ -78,7 +78,7 @@ class CryptoSet:
             "crypto": cryptoList,
             "totals": {
                 "BTC": self.totalBTC.toJSON(),
-                "USDT": self.totalUSDT.toJSON()
+                "USDC": self.totalUSDC.toJSON()
             }
         }
 
@@ -106,7 +106,10 @@ class CryptoSet:
             if "BTC" in jsonContent["totals"]:
                 self.totalBTC.fromJSON(jsonContent["totals"]["BTC"])
             if "USDT" in jsonContent["totals"]:
-                self.totalUSDT.fromJSON(jsonContent["totals"]["USDT"])
+                self.totalUSDC.fromJSON(jsonContent["totals"]["USDT"])
+            # v4
+            if "USDC" in jsonContent["totals"]:
+                self.totalUSDC.fromJSON(jsonContent["totals"]["USDC"])
 
     def __init__(self, setSpotClient:SpotClient):
         # binance client object
@@ -124,4 +127,4 @@ class CryptoSet:
 
         # totals in different currencies
         self.totalBTC=CryptoSet.CryptoSetTotal("BTC")
-        self.totalUSDT=CryptoSet.CryptoSetTotal("USDT")
+        self.totalUSDC=CryptoSet.CryptoSetTotal("USDC")
