@@ -384,9 +384,9 @@ class BinanceDataSet:
                     ]) and cryptoNewer.volume1dTrend == "lowering":
                         color=Colors.CRED
                     formatted_volume = f"{cryptoNewer.volume1d:,.0f}".replace(",", ".")
-                    print("%sVolume is %s with %s %s %s" % (color,cryptoNewer.volume1dTrend,formatted_volume,cryptoNewer.volumeSymbol,Colors.CRESET))
+                    print("%sVolume 1d is %s with %s %s %s" % (color,cryptoNewer.volume1dTrend,formatted_volume,cryptoNewer.volumeSymbol,Colors.CRESET))
                 else:
-                    print("%sVolume for 1d not found for USDC nor BTC%s" % (Colors.CRED,Colors.CRESET))
+                    print("%sVolume 1d not found for USDC nor BTC%s" % (Colors.CRED,Colors.CRESET))
 
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
