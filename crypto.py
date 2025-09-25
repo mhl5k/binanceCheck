@@ -230,6 +230,5 @@ class Crypto:
         self.hasLockedPossibility:bool = False
 
         # volumes
-        self.volumeSymbol:str = "unknown"
-        self.volume1d:float = -1.0
-        self.volume1dTrend:str = "unknown"
+        self.volumeSymbol:str = "none"
+        self.growth:str = "none"

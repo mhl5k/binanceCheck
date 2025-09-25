@@ -5,7 +5,7 @@
 from datetime import datetime
 import json
 import logging
-import numpy as np
+import math
 
 from binance.spot import Spot as SpotClient
 from binance.error import ClientError
@@ -188,40 +188,73 @@ class BinanceDataSet:
                 crypto.addToPaymentDeposit(toDeposit=amount)
                 logging.debug("Deposit found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
 
-        print("Gathering all crypto volume trends...")
+        print("Gathering all crypto volume price growth values...")
         for crypto in newCryptoSet.allCryptos.values():
             try:
                 volumeSymbol="USDC"
                 try:
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1d", limit=100)
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
                 except ClientError:
                     volumeSymbol="BTC"
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1d", limit=100)
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
 
                 crypto.volumeSymbol=volumeSymbol
 
-                # prepare volumes array, remove last unclosed and remove nan
-                volumes = [float(k[5]) for k in klines[:-1]]
-                arr = np.array(volumes)
-                arr = arr[np.isfinite(arr)]
-                crypto.volume1d=arr[-1]
-
-                # Trend bestimmen (lineare Regression)
-                if len(arr) < 2:
-                    crypto.volume1dTrend="stable"
+                if not klines:
+                    close_growth_str = "3M: — | 6M: — | 12M: —"
+                    volume_growth_str = "3M: — | 6M: — | 12M: —"
                 else:
-                    x = np.arange(len(volumes))
-                    slope, _ = np.polyfit(x, volumes, 1)
-                    crypto.volume1dTrend=np.where(slope < 0, "lowering", np.where(slope > 0, "rising", "stable"))
+                    # aktuelle Kerze bleibt enthalten (kein Drop)
+                    closes = [float(k[4]) for k in klines]   # close an Index 4
+                    volumes = [float(k[5]) for k in klines]   # volume an Index 5
+
+                    def _clean(nums):
+                        out = []
+                        for x in nums:
+                            if x is None:
+                                continue
+                            try:
+                                if isinstance(x, float) and math.isnan(x):
+                                    continue
+                            except TypeError:
+                                pass
+                            out.append(x)
+                        return out
+
+                    closes = _clean(closes)
+                    volumes = _clean(volumes)
+
+                    def pct_change(series, months_back: int):
+                        # braucht mind. months_back + 1 Werte (z.B. für 12M → 13 Werte)
+                        if len(series) <= months_back:
+                            return None
+                        last = series[-1 - months_back + 3]
+                        prev = series[-1 - months_back]
+                        if prev == 0:
+                            return None
+                        return (last - prev) / prev * 100.0
+
+                    def fmt_change(pct):
+                        if pct is None:
+                            return "—"
+                        color = Colors.CGREEN if pct >= 0 else Colors.CRED
+                        return f"{color}{pct:+.1f}%{Colors.CRESET}"
+
+                    def build_growth_str(series):
+                        return " | ".join(f"{m}M: {fmt_change(pct_change(series, m))}" for m in (3, 6, 9, 12))
+
+                    close_growth_str = build_growth_str(closes)
+                    volume_growth_str = build_growth_str(volumes)
+
+                # store strings
+                crypto.growth = f"Price: {close_growth_str} | Volume: {volume_growth_str}"
 
             except ClientError as E:
                 logging.debug(f"ClientError: {E}")
-                crypto.volume1d=-1.0
 
         # calculate total BTC of set after gathering all cryptos
         # ------------------------------------------------------
-        if not DATASETDEBUG:
-            newCryptoSet.updateTotalsOfSet()
+        newCryptoSet.updateTotalsOfSet()
 
     # Snapshots
     def snapshots(self):
@@ -376,17 +409,8 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
-                if cryptoNewer.volume1d > -1:
-                    color=Colors.CGREEN
-                    if any([
-                        cryptoNewer.volume1d < 10000000 and cryptoNewer.volumeSymbol == "USDC",
-                        cryptoNewer.volume1d < 10000000/120000 and cryptoNewer.volumeSymbol == "BTC",
-                    ]) and cryptoNewer.volume1dTrend == "lowering":
-                        color=Colors.CRED
-                    formatted_volume = f"{cryptoNewer.volume1d:,.0f}".replace(",", ".")
-                    print("%sVolume 1d is %s with %s %s %s" % (color,cryptoNewer.volume1dTrend,formatted_volume,cryptoNewer.volumeSymbol,Colors.CRESET))
-                else:
-                    print("%sVolume 1d not found for USDC nor BTC%s" % (Colors.CRED,Colors.CRESET))
+                # show growth info
+                print(cryptoNewer.growth)
 
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
