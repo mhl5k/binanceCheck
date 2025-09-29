@@ -5,7 +5,6 @@
 from datetime import datetime
 import json
 import logging
-import math
 
 from binance.spot import Spot as SpotClient
 from binance.error import ClientError
@@ -208,46 +207,38 @@ class BinanceDataSet:
                     closes = [float(k[4]) for k in klines]   # close an Index 4
                     volumes = [float(k[5]) for k in klines]   # volume an Index 5
 
-                    def _clean(nums):
-                        out = []
-                        for x in nums:
-                            if x is None:
-                                continue
-                            try:
-                                if isinstance(x, float) and math.isnan(x):
-                                    continue
-                            except TypeError:
-                                pass
-                            out.append(x)
-                        return out
+                    def _formatNumberWithSuffix(value):
+                        a=""
+                        if abs(value) >= 1_000_000:
+                            a=f" ({value / 1_000_000:.2f}M)"
+                        elif abs(value) >= 1_000:
+                            a=f" ({value / 1_000:.2f}K)"
+                        else:
+                            a=f" ({value:.2f})"
+                        return a
 
-                    closes = _clean(closes)
-                    volumes = _clean(volumes)
+                    def _build_growth_str(series, label="Wert", horizons=(3, 6, 9, 12), showabs=True):
+                        parts = []
+                        for m in horizons:
+                            if len(series) > m:
+                                last = series[-1 - m + 3]
+                                prev = series[-1 - m]
+                                if prev != 0:
+                                    pct = (last - prev) / prev * 100
+                                    color = Colors.CGREEN if pct >= 0 else Colors.CRED
+                                    abs_str = _formatNumberWithSuffix(last) if showabs else ""
+                                    parts.append(f"{label} {m}M: {color}{pct:+.1f}%{abs_str}{Colors.CRESET}")
+                                else:
+                                    parts.append(f"{label} {m}M: —")
+                            else:
+                                parts.append(f"{label} {m}M: —")
+                        return " | ".join(parts)
 
-                    def pct_change(series, months_back: int):
-                        # braucht mind. months_back + 1 Werte (z.B. für 12M → 13 Werte)
-                        if len(series) <= months_back:
-                            return None
-                        last = series[-1 - months_back + 3]
-                        prev = series[-1 - months_back]
-                        if prev == 0:
-                            return None
-                        return (last - prev) / prev * 100.0
-
-                    def fmt_change(pct):
-                        if pct is None:
-                            return "—"
-                        color = Colors.CGREEN if pct >= 0 else Colors.CRED
-                        return f"{color}{pct:+.1f}%{Colors.CRESET}"
-
-                    def build_growth_str(series):
-                        return " | ".join(f"{m}M: {fmt_change(pct_change(series, m))}" for m in (3, 6, 9, 12))
-
-                    close_growth_str = build_growth_str(closes)
-                    volume_growth_str = build_growth_str(volumes)
+                    close_growth_str = _build_growth_str(closes, "Close")
+                    volume_growth_str = _build_growth_str(volumes, "Volume", showabs=True)
 
                 # store strings
-                crypto.growth = f"Price: {close_growth_str} | Volume: {volume_growth_str}"
+                crypto.growth = f"Price: {close_growth_str} \r\nVolume: {volume_growth_str}"
 
             except ClientError as E:
                 logging.debug(f"ClientError: {E}")
