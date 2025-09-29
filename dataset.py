@@ -274,7 +274,7 @@ class BinanceDataSet:
                     App.errorExit(4,f"Invalid format for date {givenDate}. Please use YYYY, YYYY-MM, or YYYY-MM-DD format.")
 
         # check format
-        givenDate += "-01-01" if len(givenDate) in [4, 7] else "-01"
+        givenDate += "-01-01" if len(givenDate) in [4] else "-01" if len(givenDate) in [7] else ""
         return givenDate
 
     def _getCryptoSetByDate(self,givenDate:str) -> CryptoSet:
@@ -282,10 +282,11 @@ class BinanceDataSet:
         retItem:CryptoSet=None
         item:CryptoSet=None
         # find the closest date which is lower or qual than the given date
+        given_date_obj = datetime.strptime(givenDate, "%Y-%m-%d").date()
         for item in self.cryptoSetList:
             # convert cryptoset time to YYYY-MM-DD
-            t = datetime.strptime(item.time, "%Y-%m-%d %H:%M:%S.%f")
-            if (str(t.date()) <= givenDate):
+            t = datetime.fromisoformat(item.time)
+            if (t.date() <= given_date_obj):
                 retItem=item
 
         return retItem
@@ -401,7 +402,8 @@ class BinanceDataSet:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
                 # show growth info
-                print(cryptoNewer.growth)
+                if cryptoNewer.growth!="none":
+                    print(cryptoNewer.growth)
 
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
