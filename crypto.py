@@ -164,7 +164,7 @@ class Crypto:
 
     # return price/value for a given crypto name and amount
     # default conversion is to BTC, but can every crypto
-    # if not found, function will try to convert over USDT
+    # if not found, function will try to convert over USDC
     # can be called from outside
     def _getPriceForCrypto(self,fromCrypto:str, fromCryptoAmount:float, toCrypto:str) -> float:
         valueForCrypto=0.0
@@ -192,13 +192,13 @@ class Crypto:
                 except ClientError:
                     # nothing found, raise error
                     logging.debug(f"Ticker not found {toCrypto} to {fromCrypto}!")
-                    if toCrypto!="USDT" and fromCrypto!="USDT":
-                        logging.debug("Trying to get a USDT variant")
-                        usdtValue=self._getPriceForCrypto(fromCrypto, fromCryptoAmount, "USDT")
-                        # has usdt then usdt to btc
-                        valueForCrypto=self._getPriceForCrypto("USDT", usdtValue, "BTC")
+                    if toCrypto!="USDC" and fromCrypto!="USDC":
+                        logging.debug("Trying to get a USDC variant")
+                        USDCValue=self._getPriceForCrypto(fromCrypto, fromCryptoAmount, "USDC")
+                        # has USDC then USDC to btc
+                        valueForCrypto=self._getPriceForCrypto("USDC", USDCValue, "BTC")
                     else:
-                        # trading to BTC or USDT does not exists
+                        # trading to BTC or USDC does not exists
                         valueForCrypto=0.0
 
         logging.debug(f"{fromCrypto} to {toCrypto} price: {valueForCrypto:.8f}")
@@ -225,3 +225,10 @@ class Crypto:
 
         # dict for all totals in different currencies
         self.allTotals:list = []
+
+        # set whether crypto has a earn locked possibility
+        self.hasLockedPossibility:bool = False
+
+        # volumes
+        self.volumeSymbol:str = "none"
+        self.growth:str = "none"

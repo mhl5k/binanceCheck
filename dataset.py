@@ -15,6 +15,8 @@ from mhl5k.app import App
 from crypto import Crypto
 from cryptoset import CryptoSet
 
+DATASETDEBUG = False
+
 
 def printSection(sec: str):
     sep="-" * len(sec)
@@ -65,7 +67,7 @@ class BinanceDataSet:
 
         # Account & Order Wallet Assets
         # -----------------------------
-        print("Gathering Account/Order Assets...")
+        print("Gathering Spot/Order Assets...")
 
         for accountAsset in account["balances"]:
             name:str=accountAsset["asset"]
@@ -96,6 +98,18 @@ class BinanceDataSet:
             name=s["asset"]
             crypto=newCryptoSet.getCryptoByName(name)
             crypto.addToFlexible(float(s["totalAmount"]))
+
+            # check whether locked is possible to mark it
+            lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=10)
+            logging.debug(lockedProductList)
+            soldOut=0
+            for s in lockedProductList["rows"]:
+                if s["detail"]["isSoldOut"]==True:
+                    soldOut+=1
+
+            hasLockedCount=int(lockedProductList["total"])
+            crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
+            logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}")
 
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
@@ -172,6 +186,62 @@ class BinanceDataSet:
                 amount=float(data["amount"])
                 crypto.addToPaymentDeposit(toDeposit=amount)
                 logging.debug("Deposit found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
+
+        print("Gathering all crypto volume price growth values...")
+        for crypto in newCryptoSet.allCryptos.values():
+            try:
+                volumeSymbol="USDC"
+                try:
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
+                except ClientError:
+                    volumeSymbol="BTC"
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
+
+                crypto.volumeSymbol=volumeSymbol
+
+                if not klines:
+                    close_growth_str = "3M: — | 6M: — | 12M: —"
+                    volume_growth_str = "3M: — | 6M: — | 12M: —"
+                else:
+                    # aktuelle Kerze bleibt enthalten (kein Drop)
+                    closes = [float(k[4]) for k in klines]   # close an Index 4
+                    volumes = [float(k[5]) for k in klines]   # volume an Index 5
+
+                    def _formatNumberWithSuffix(value):
+                        a=""
+                        if abs(value) >= 1_000_000:
+                            a=f" ({value / 1_000_000:.2f}M)"
+                        elif abs(value) >= 1_000:
+                            a=f" ({value / 1_000:.2f}K)"
+                        else:
+                            a=f" ({value:.2f})"
+                        return a
+
+                    def _build_growth_str(series, label="Wert", horizons=(3, 6, 9, 12), showabs=True):
+                        parts = []
+                        for m in horizons:
+                            if len(series) > m:
+                                last = series[-1 - m + 3]
+                                prev = series[-1 - m]
+                                if prev != 0:
+                                    pct = (last - prev) / prev * 100
+                                    color = Colors.CGREEN if pct >= 0 else Colors.CRED
+                                    abs_str = _formatNumberWithSuffix(last) if showabs else ""
+                                    parts.append(f"{label} {m}M: {color}{pct:+.1f}%{abs_str}{Colors.CRESET}")
+                                else:
+                                    parts.append(f"{label} {m}M: —")
+                            else:
+                                parts.append(f"{label} {m}M: —")
+                        return " | ".join(parts)
+
+                    close_growth_str = _build_growth_str(closes, "Close")
+                    volume_growth_str = _build_growth_str(volumes, "Volume", showabs=True)
+
+                # store strings
+                crypto.growth = f"Price: {close_growth_str} \r\nVolume: {volume_growth_str}"
+
+            except ClientError as E:
+                logging.debug(f"ClientError: {E}")
 
         # calculate total BTC of set after gathering all cryptos
         # ------------------------------------------------------
@@ -305,16 +375,19 @@ class BinanceDataSet:
 
                 showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto)
                 showValue("Total-Plan",cryptoNewer.getTotal()-cryptoNewer.earnPlan,cryptoOlder.getTotal()-cryptoOlder.earnPlan,days)
-                showValue("Wall+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
+                showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
                     showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
-                    showValue("Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
+                    showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
-                    showValue("Staking",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
+                    showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
+                else:
+                    if cryptoNewer.hasLockedPossibility:
+                        print("%sEarn-Locked is available, but not used%s" % (Colors.CRED,Colors.CRESET))
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
                     showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)
@@ -327,15 +400,18 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
+                # show growth info
+                print(cryptoNewer.growth)
+
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
             o=setOlder.totalBTC.total-setOlder.totalBTC.deposit
             showValue("∑ BTC -Depo",n,o,days)
 
-            showValue("∑ USDT all",setNewer.totalUSDT.total,setOlder.totalUSDT.total,days)
-            n=setNewer.totalUSDT.total-setNewer.totalUSDT.deposit
-            o=setOlder.totalUSDT.total-setOlder.totalUSDT.deposit
-            showValue("∑ USDT -Depo",n,o,days)
+            showValue("∑ USDC all",setNewer.totalUSDC.total,setOlder.totalUSDC.total,days)
+            n=setNewer.totalUSDC.total-setNewer.totalUSDC.deposit
+            o=setOlder.totalUSDC.total-setOlder.totalUSDC.deposit
+            showValue("∑ USDC -Depo",n,o,days)
 
         # differenc growth between last and first and last and before
         printSection(f"Last to first... {last.time} to {first.time}")
