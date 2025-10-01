@@ -15,7 +15,7 @@ from mhl5k.app import App
 from crypto import Crypto
 from cryptoset import CryptoSet
 
-DATASETDEBUG = False
+DATASET_DONTSAVE = False
 
 
 def printSection(sec: str):
@@ -82,34 +82,50 @@ class BinanceDataSet:
         # Savings
         # -------
         print("Gathering Earn Locked...")
-        locked = self.spotClient.get_locked_product_position(size=100)
-        logging.debug(locked)
-        for s in locked["rows"]:
-            # print(s)
-            name=s["asset"]
-            crypto=newCryptoSet.getCryptoByName(name)
-            crypto.addToLocked(float(s["amount"]))
+        count=1
+        maxcount=1
+        while count<=maxcount:
+            locked = self.spotClient.get_locked_product_position(current=count,size=100)
+            logging.debug(locked)
+            amount:int=int(locked["total"])
+            # roundup amount/100
+            maxcount = (amount + 99) // 100
+            for s in locked["rows"]:
+                # print(s)
+                name=s["asset"]
+                crypto=newCryptoSet.getCryptoByName(name)
+                crypto.addToLocked(float(s["amount"]))
+
+            count+=1
 
         print("Gathering Earn Flexible...")
-        flexible=self.spotClient.get_flexible_product_position(size=100)
-        logging.debug(flexible)
-        for s in flexible["rows"]:
-            # print(s)
-            name=s["asset"]
-            crypto=newCryptoSet.getCryptoByName(name)
-            crypto.addToFlexible(float(s["totalAmount"]))
+        count=1
+        maxcount=1
+        while count<=maxcount:
+            flexible=self.spotClient.get_flexible_product_position(current=count,size=100)
+            logging.debug(flexible)
+            amount:int=int(flexible["total"])
+            # roundup amount/100
+            maxcount = (amount + 99) // 100
+            for s in flexible["rows"]:
+                # print(s)
+                name=s["asset"]
+                crypto=newCryptoSet.getCryptoByName(name)
+                crypto.addToFlexible(float(s["totalAmount"]))
 
-            # check whether locked is possible to mark it
-            lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=10)
-            logging.debug(lockedProductList)
-            soldOut=0
-            for s in lockedProductList["rows"]:
-                if s["detail"]["isSoldOut"]==True:
-                    soldOut+=1
+                # check whether locked is possible to mark it
+                lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=20)
+                logging.debug(lockedProductList)
+                soldOut=0
+                for s in lockedProductList["rows"]:
+                    if s["detail"]["isSoldOut"]==True:
+                        soldOut+=1
 
-            hasLockedCount=int(lockedProductList["total"])
-            crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
-            logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}")
+                hasLockedCount=int(lockedProductList["total"])
+                crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
+                logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}")
+
+            count+=1
 
         print("Gathering Plans...")
         plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
@@ -203,7 +219,8 @@ class BinanceDataSet:
                     close_growth_str = "3M: — | 6M: — | 12M: —"
                     volume_growth_str = "3M: — | 6M: — | 12M: —"
                 else:
-                    # aktuelle Kerze bleibt enthalten (kein Drop)
+                    # Drop last candle, because it is incomplete (an issue at beginning of month)
+                    klines=klines[:-1]
                     closes = [float(k[4]) for k in klines]   # close an Index 4
                     volumes = [float(k[5]) for k in klines]   # volume an Index 5
 

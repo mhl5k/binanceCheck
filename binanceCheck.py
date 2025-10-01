@@ -6,12 +6,12 @@
 import logging
 import argparse
 from binance.lib.utils import config_logging
-from dataset import BinanceDataSet, DATASETDEBUG
+from dataset import BinanceDataSet, DATASET_DONTSAVE
 from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.52"
+VERSION = "0.53"
 
 # Functions and constants
 # ------------------------
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         if args.no_gather == False:
             binanceAccountDataSet.gatherNewDataSet()
 
-        if not DATASETDEBUG:
+        if not DATASET_DONTSAVE:
             binanceAccountDataSet.saveData()
 
         print("Done")
