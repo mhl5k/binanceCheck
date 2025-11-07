@@ -226,7 +226,8 @@ class Crypto:
         # dict for all totals in different currencies
         self.allTotals:list = []
 
-        # set whether crypto has a earn locked possibility
+        # set whether crypto has a earn flexible or locked possibility
+        self.hasFlexiblePossibility:bool = False
         self.hasLockedPossibility:bool = False
 
         # volumes

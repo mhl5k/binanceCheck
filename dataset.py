@@ -79,6 +79,17 @@ class BinanceDataSet:
                 crypto=newCryptoSet.getCryptoByName(name)
                 crypto.addToWalletAndOrderValue(toAddFree=free,toAddLocked=locked)
 
+                # check whether flexible is available
+                flexibleProductList=self.spotClient.get_simple_earn_flexible_product_list(asset=name,size=20)
+                logging.debug(flexibleProductList)
+                soldOut=0
+                for s in flexibleProductList["rows"]:
+                    soldOut += 1 if s["isSoldOut"]==True else 0
+
+                hasFlexibleCount=int(flexibleProductList["total"])
+                crypto.hasFlexiblePossibility=hasFlexibleCount>0 and soldOut<hasFlexibleCount
+                logging.debug(f" {name} hasFlexibleCount: {hasFlexibleCount}, soldOut: {soldOut}, hasFlexiblePossibility: {crypto.hasFlexiblePossibility}")
+
         # Savings
         # -------
         print("Gathering Earn Locked...")
@@ -118,8 +129,7 @@ class BinanceDataSet:
                 logging.debug(lockedProductList)
                 soldOut=0
                 for s in lockedProductList["rows"]:
-                    if s["detail"]["isSoldOut"]==True:
-                        soldOut+=1
+                    soldOut += 1 if s["detail"]["isSoldOut"]==True else 0
 
                 hasLockedCount=int(lockedProductList["total"])
                 crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
@@ -400,12 +410,15 @@ class BinanceDataSet:
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
                     showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
+                else:
+                    if cryptoNewer.hasFlexiblePossibility:
+                        print("%sEarn-Flexible is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
                     showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
                 else:
                     if cryptoNewer.hasLockedPossibility:
-                        print("%sEarn-Locked is available, but not used%s" % (Colors.CRED,Colors.CRESET))
+                        print("%sEarn-Locked is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
                     showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)
