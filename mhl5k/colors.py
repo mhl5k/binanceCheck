@@ -2,20 +2,25 @@
 # License: MIT
 # Author: mhl5k
 
-__version__ = "0.12"
+__version__ = "0.13"
 
 
 class Colors:
     CGREEN="\033[92m"
     CRED="\033[91m"
+    CYELLOW="\033[93m"
     CRESET="\033[0m"
 
     # get red, green or white whether lower, greater, equal to zero
+    @staticmethod
     def getColorByGLTZero(value:float) -> str:
         color=Colors.CRESET
-        if value<0: color=Colors.CRED
-        if value>0: color=Colors.CGREEN
+        if value<0:
+            color=Colors.CRED
+        elif value>0:
+            color=Colors.CGREEN
         return color
+
 
 # Test function for module  
 def _test():
@@ -23,9 +28,10 @@ def _test():
     assert Colors.getColorByGLTZero(-0.1) == Colors.CRED
     assert Colors.getColorByGLTZero(0.1) == Colors.CGREEN
     assert Colors.getColorByGLTZero(0) == Colors.CRESET
-    
+
     # end
     print(__file__+" "+__version__+": All module tests did run fine.")
+
 
 # when file ist started directlx
 if __name__ == '__main__':
