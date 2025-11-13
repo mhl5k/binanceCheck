@@ -11,11 +11,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-<<<<<<< Updated upstream
-VERSION = "0.53"
-=======
 VERSION = "0.60"
->>>>>>> Stashed changes
 
 # Functions and constants
 # ------------------------
