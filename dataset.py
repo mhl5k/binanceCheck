@@ -11,7 +11,6 @@ from binance.error import ClientError
 from mhl5k.settings import Settings
 from mhl5k.colors import Colors
 from mhl5k.files import Files
-from mhl5k.app import App
 from crypto import Crypto
 from cryptoset import CryptoSet
 
@@ -278,37 +277,18 @@ class BinanceDataSet:
 
             print("Time: %d - %s - BTC: %s" % (timestamp, date, btcValue))
 
-    def _makeValidDate(self,givenDate:str) -> str:
-        try:
-            datetime.strptime(givenDate, '%Y-%m-%d')
-        except ValueError:
-            try:
-                datetime.strptime(givenDate, '%Y-%m')
-            except ValueError:
-                try:
-                    datetime.strptime(givenDate, '%Y')
-                except ValueError:
-                    App.errorExit(4,f"Invalid format for date {givenDate}. Please use YYYY, YYYY-MM, or YYYY-MM-DD format.")
-
-        # check format
-        givenDate += "-01-01" if len(givenDate) in [4] else "-01" if len(givenDate) in [7] else ""
-        return givenDate
-
-    def _getCryptoSetByDate(self,givenDate:str) -> CryptoSet:
+    def _getCryptoSetByDate(self,timestampToFind) -> CryptoSet:
         # get item of cryptoset which its date is lower and closest to given date
-        retItem:CryptoSet=None
         item:CryptoSet=None
-        # find the closest date which is lower or qual than the given date
-        given_date_obj = datetime.strptime(givenDate, "%Y-%m-%d").date()
+        # find the closest date which is lower or equal than the given date
+        last:CryptoSet=None
         for item in self.cryptoSetList:
-            # convert cryptoset time to YYYY-MM-DD
-            t = datetime.fromisoformat(item.time)
-            if (t.date() <= given_date_obj):
-                retItem=item
+            if item.timestamp < timestampToFind:
+                last=item
+            else:
+                return last
 
-        return retItem
-
-    def analyzeGrowthAndShow(self,setOlderDate:str,setNewerDate:str):
+    def analyzeGrowthAndShow(self,compareNrOfDays:int):
         printSection("Analyze")
 
         # sort cryptoset list by date
@@ -316,34 +296,20 @@ class BinanceDataSet:
 
         # get first and last set
         first:CryptoSet=self.cryptoSetList[0]
+        last:CryptoSet=self.cryptoSetList[-1] if len(self.cryptoSetList)>1 else first
+        before:CryptoSet=self.cryptoSetList[-2] if len(self.cryptoSetList)>1 else last
 
-        if setNewerDate == "latest":
-            last:CryptoSet=self.cryptoSetList[-1]
-        else:
-            setNewerDate=self._makeValidDate(setNewerDate)
-            last=self._getCryptoSetByDate(setNewerDate)
+        # if before or last is none set to first
+        before = last if before is None else before
 
-        if setOlderDate == "before":
-            # get index of object "last" in list
-            i=0
-            for i, item in enumerate(self.cryptoSetList):
-                if item == last:
-                    break
-            # get one object before
-            before=self.cryptoSetList[i-1] if i>0 else first
-        else:
-            setOlderDate=self._makeValidDate(setOlderDate)
-            before=self._getCryptoSetByDate(setOlderDate)
+        # get timestamp of last gathered set
+        lastTimestamp = last.timestamp
 
-        # check if the earliest is not found
-        if before is None or last is None:
-            App.errorExit(5,f"Date cannot be found, earliest is {first.time}")
-
-        # Swap last and before if needed
-        if before.time > last.time:
-            last, before = before, last
-
-        logging.debug(f"Set1: {setOlderDate}, Set2: {setNewerDate}")
+        # when compareNrOfDays is set, use it
+        if (compareNrOfDays>0):
+            beforeTimestamp = lastTimestamp - compareNrOfDays*24*60*60
+            # get set with this timestamp
+            before = self._getCryptoSetByDate(beforeTimestamp)
 
         # analyze
         print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))

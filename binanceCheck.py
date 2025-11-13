@@ -11,7 +11,11 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
+<<<<<<< Updated upstream
 VERSION = "0.53"
+=======
+VERSION = "0.60"
+>>>>>>> Stashed changes
 
 # Functions and constants
 # ------------------------
@@ -25,14 +29,12 @@ if __name__ == "__main__":
 
     # parse command line
     parser = argparse.ArgumentParser(description='Check binance account, gathers data and compare values between dates.')
-    parser.add_argument('-o', '--setolder', type=str, help='Date of older dataset, YYYY-MM-DD | YYYY-MM | YYYY')
-    parser.add_argument('-n', '--setnewer', type=str, help='Date of newer dataset, YYYY-MM-DD | YYYY-MM | YYYY')
+    parser.add_argument('-d', '--days', type=int, help='Nr. of days to go back for comparison', default=0)
     parser.add_argument('-g', '--no-gather', action='store_true', help='Do not gather new dataset')
 
     args = parser.parse_args()
 
-    setOlderDate = args.setolder if args.setolder else "before"
-    setNewerDate = args.setnewer if args.setnewer else "latest"
+    compareNrOfDays = args.days
 
     # check account, save data, analyze difference/growth
     try:
@@ -53,7 +55,7 @@ if __name__ == "__main__":
         print("Done")
 
         # analyze datasets
-        binanceAccountDataSet.analyzeGrowthAndShow(setOlderDate, setNewerDate)
+        binanceAccountDataSet.analyzeGrowthAndShow(compareNrOfDays)
 
     except Exception as E:
         print("Error: %s" % E)

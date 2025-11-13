@@ -18,7 +18,7 @@ It saves all data in a json file, so it can be used to visualize it
 with other analyzing tools.
 
 It shows the growth of your currencies, for example
-when you are using Binance Earn or Trading them.
+when you are using Binance Earn or trading them.
 
 When calculating the BTC total price, the pair price of
 Crypto/BTC or BTC/crypto is checked. Whenever there is no BTC
