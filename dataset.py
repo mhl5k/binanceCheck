@@ -14,7 +14,7 @@ from mhl5k.files import Files
 from crypto import Crypto
 from cryptoset import CryptoSet
 
-DATASET_DONTSAVE = False
+DATASET_SAVE = True
 
 
 def printSection(sec: str):
@@ -376,13 +376,13 @@ class BinanceDataSet:
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
                     showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
-                else:
+                if cryptoNewer.orderWalletFree>0.0:
                     if cryptoNewer.hasFlexiblePossibility:
                         print("%sEarn-Flexible is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
                     showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
-                else:
+                if cryptoNewer.earnFlexible>0.0:
                     if cryptoNewer.hasLockedPossibility:
                         print("%sEarn-Locked is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
