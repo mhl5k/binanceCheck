@@ -84,10 +84,12 @@ class BinanceDataSet:
                 soldOut=0
                 for s in flexibleProductList["rows"]:
                     soldOut += 1 if s["isSoldOut"]==True else 0
+                    if free >= float(s["minPurchaseAmount"]):
+                        crypto.canUseFlexible=True
 
                 hasFlexibleCount=int(flexibleProductList["total"])
                 crypto.hasFlexiblePossibility=hasFlexibleCount>0 and soldOut<hasFlexibleCount
-                logging.debug(f" {name} hasFlexibleCount: {hasFlexibleCount}, soldOut: {soldOut}, hasFlexiblePossibility: {crypto.hasFlexiblePossibility}")
+                logging.debug(f" {name} hasFlexibleCount: {hasFlexibleCount}, soldOut: {soldOut}, hasFlexiblePossibility: {crypto.hasFlexiblePossibility}, minPurchaseReached: {crypto.canUseFlexible}")
 
         # Savings
         # -------
@@ -121,7 +123,8 @@ class BinanceDataSet:
                 # print(s)
                 name=s["asset"]
                 crypto=newCryptoSet.getCryptoByName(name)
-                crypto.addToFlexible(float(s["totalAmount"]))
+                valueInFlexible=float(s["totalAmount"])
+                crypto.addToFlexible(valueInFlexible)
 
                 # check whether locked is possible to mark it
                 lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=20)
@@ -129,10 +132,12 @@ class BinanceDataSet:
                 soldOut=0
                 for s in lockedProductList["rows"]:
                     soldOut += 1 if s["detail"]["isSoldOut"]==True else 0
+                    if valueInFlexible >= float(s["quota"]["minimum"]):
+                        crypto.canUseLocked=True
 
                 hasLockedCount=int(lockedProductList["total"])
                 crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
-                logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}")
+                logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}, minPurchaseReached: {crypto.canUseLocked}")
 
             count+=1
 
@@ -376,15 +381,13 @@ class BinanceDataSet:
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
                     showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
-                if cryptoNewer.orderWalletFree>0.0:
-                    if cryptoNewer.hasFlexiblePossibility:
-                        print("%sEarn-Flexible is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
+                if cryptoNewer.hasFlexiblePossibility and cryptoNewer.canUseFlexible:
+                    print("%sEarn-Flexible is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
                     showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
-                if cryptoNewer.earnFlexible>0.0:
-                    if cryptoNewer.hasLockedPossibility:
-                        print("%sEarn-Locked is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
+                if cryptoNewer.hasLockedPossibility and cryptoNewer.canUseLocked:
+                    print("%sEarn-Locked is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
                     showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)

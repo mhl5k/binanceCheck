@@ -228,7 +228,9 @@ class Crypto:
 
         # set whether crypto has a earn flexible or locked possibility
         self.hasFlexiblePossibility:bool = False
+        self.canUseFlexible:bool = False
         self.hasLockedPossibility:bool = False
+        self.canUseLocked:bool = False
 
         # volumes
         self.volumeSymbol:str = "none"
