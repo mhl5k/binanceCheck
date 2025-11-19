@@ -6,12 +6,12 @@
 import logging
 import argparse
 from binance.lib.utils import config_logging
-from dataset import BinanceDataSet, DATASET_SAVE
+from dataset import BinanceDataSet
 from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.62"
+VERSION = "0.63"
 
 
 # Functions and constants
@@ -27,7 +27,8 @@ if __name__ == "__main__":
     # parse command line
     parser = argparse.ArgumentParser(description='Check binance account, gathers data and compare values between dates.')
     parser.add_argument('-d', '--days', type=int, help='Nr. of days to go back for comparison', default=0)
-    parser.add_argument('-g', '--no-gather', action='store_true', help='Do not gather new dataset')
+    parser.add_argument('-g', '--no-gather', action='store_true', help='Do not gather new dataset', default=False)
+    parser.add_argument('-s', '--no-save', action='store_true', help='Do not save gathered dataset', default=False)
 
     args = parser.parse_args()
 
@@ -43,10 +44,13 @@ if __name__ == "__main__":
         # Binance Data Set
         binanceAccountDataSet = BinanceDataSet(settings)
         binanceAccountDataSet.loadData()
+
+        # only gather new data if not disabled
         if args.no_gather == False:
             binanceAccountDataSet.gatherNewDataSet()
 
-        if DATASET_SAVE:
+        # only save data if not disabled
+        if args.no_save == False:
             binanceAccountDataSet.saveData()
 
         print("Done")

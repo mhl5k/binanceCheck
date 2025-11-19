@@ -14,8 +14,6 @@ from mhl5k.files import Files
 from crypto import Crypto
 from cryptoset import CryptoSet
 
-DATASET_SAVE = True
-
 
 def printSection(sec: str):
     sep="-" * len(sec)
@@ -229,47 +227,78 @@ class BinanceDataSet:
 
                 crypto.volumeSymbol=volumeSymbol
 
-                if not klines:
-                    close_growth_str = "3M: — | 6M: — | 12M: —"
-                    volume_growth_str = "3M: — | 6M: — | 12M: —"
-                else:
+                if klines:
+
+                    def _formatNumberWithSuffix(value: float) -> str:
+                        if abs(value) >= 1_000_000:
+                            return f" ({value / 1_000_000:.2f}M)"
+                        elif abs(value) >= 1_000:
+                            return f" ({value / 1_000:.2f}K)"
+                        else:
+                            return f" ({value:.2f})"
+
+                    def _trend_pct(series: list[float], months: int) -> float | None:
+                        """Prozentänderung über 'months' zwischen letztem und Wert vor months."""
+                        if len(series) <= months:
+                            return None
+                        last = series[-1]
+                        prev = series[-1 - months]
+                        if prev == 0:
+                            return None
+                        return (last - prev) / prev * 100
+
+                    def _trend_and_keep(pct: float | None) -> tuple[str, str]:
+                        if pct is None:
+                            return "NOT ENOUGH DATA", "REVIEW"
+                        if pct >= 20:
+                            return "↑↑", "KEEP"
+                        if pct >= 5:
+                            return "↑", "KEEP"
+                        if pct <= -20:
+                            return "↓↓", "DROP"
+                        if pct <= -5:
+                            return "↓", "REVIEW"
+                        # default sideway
+                        return "→", "REVIEW"
+
                     # Drop last candle, because it is incomplete (an issue at beginning of month)
                     klines=klines[:-1]
                     closes = [float(k[4]) for k in klines]   # close an Index 4
                     volumes = [float(k[5]) for k in klines]   # volume an Index 5
 
-                    def _formatNumberWithSuffix(value):
-                        a=""
-                        if abs(value) >= 1_000_000:
-                            a=f" ({value / 1_000_000:.2f}M)"
-                        elif abs(value) >= 1_000:
-                            a=f" ({value / 1_000:.2f}K)"
-                        else:
-                            a=f" ({value:.2f})"
-                        return a
+                    months = 6
 
-                    def _build_growth_str(series, label="Wert", horizons=(3, 6, 9, 12), showabs=True):
-                        parts = []
-                        for m in horizons:
-                            if len(series) > m:
-                                last = series[-1 - m + 3]
-                                prev = series[-1 - m]
-                                if prev != 0:
-                                    pct = (last - prev) / prev * 100
-                                    color = Colors.CGREEN if pct >= 0 else Colors.CRED
-                                    abs_str = _formatNumberWithSuffix(last) if showabs else ""
-                                    parts.append(f"{label} {m}M: {color}{pct:+.1f}%{abs_str}{Colors.CRESET}")
-                                else:
-                                    parts.append(f"{label} {m}M: —")
-                            else:
-                                parts.append(f"{label} {m}M: —")
-                        return " | ".join(parts)
+                    price_pct = _trend_pct(closes, months)
+                    vol_pct = _trend_pct(volumes, months)
 
-                    close_growth_str = _build_growth_str(closes, "Close")
-                    volume_growth_str = _build_growth_str(volumes, "Volume", showabs=True)
+                    price_trend, price_keep = _trend_and_keep(price_pct)
+                    vol_trend, vol_keep = _trend_and_keep(vol_pct)
 
-                # store strings
-                crypto.growth = f"Price: {close_growth_str} \r\nVolume: {volume_growth_str}"
+                    price_part = "n/a"
+                    if price_pct is not None:
+                        color = Colors.getColorByGLTZero(price_pct)
+                        price_part = f"{color}{price_trend} {price_pct:+.1f}%{Colors.CRESET}"
+
+                    vol_part = "n/a"
+                    if vol_pct is not None:
+                        color = Colors.getColorByGLTZero(vol_pct)
+                        last_vol = volumes[-1] if volumes else 0.0
+                        vol_part = f"{color}{vol_trend}{vol_pct:+.1f}% {_formatNumberWithSuffix(last_vol)}{Colors.CRESET}"
+
+                    flag = "REVIEW"
+                    color = Colors.CYELLOW
+                    if price_keep == "KEEP" and vol_keep == "KEEP":
+                        flag = "KEEP"
+                        color = Colors.CGREEN
+                    if price_keep == "DROP" or vol_keep == "DROP":
+                        flag = "DROP"
+                        color = Colors.CRED
+
+                    crypto.growth = (
+                        f"{color}{flag}{Colors.CRESET} | "
+                        f"Price {months}M: {price_part} | "
+                        f"Volume {months}M: {vol_part}"
+                    )
 
             except ClientError as E:
                 logging.debug(f"ClientError: {E}")
