@@ -107,6 +107,8 @@ class Crypto:
             # V5
             "earnFlexible": "{:.8f}".format(self.earnFlexible),
             "earnLocked": "{:.8f}".format(self.earnLocked),
+            # V6
+            "growth": self.growth
         }
 
         logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
@@ -144,6 +146,9 @@ class Crypto:
             self.earnFlexible=float(jsonContent["earnFlexible"])
         if "earnLocked" in jsonContent:
             self.earnLocked=float(jsonContent["earnLocked"])
+        # version 6
+        if "growth" in jsonContent:
+            self.growth = str(jsonContent["growth"])
 
     def _getPriceFromBinance(self,symbol: str) -> float:
         # get price from gathered tickers if possible
@@ -233,5 +238,4 @@ class Crypto:
         self.canUseLocked:bool = False
 
         # volumes
-        self.volumeSymbol:str = "none"
         self.growth:str = "none"

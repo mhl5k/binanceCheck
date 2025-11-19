@@ -225,8 +225,7 @@ class BinanceDataSet:
                     volumeSymbol="BTC"
                     klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
 
-                crypto.volumeSymbol=volumeSymbol
-
+                # if klines returned
                 if klines:
 
                     def _formatNumberWithSuffix(value: float) -> str:
@@ -294,10 +293,11 @@ class BinanceDataSet:
                         flag = "DROP"
                         color = Colors.CRED
 
+                    # store in crypto set
                     crypto.growth = (
                         f"{color}{flag}{Colors.CRESET} | "
                         f"Price {months}M: {price_part} | "
-                        f"Volume {months}M: {vol_part}"
+                        f"Volume {months}M: {vol_part} {volumeSymbol}"
                     )
 
             except ClientError as E:
