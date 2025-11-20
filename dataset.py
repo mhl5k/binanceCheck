@@ -252,15 +252,15 @@ class BinanceDataSet:
                         if pct is None:
                             return "❓", "REVIEW", Colors.CYELLOW
                         if pct >= 20:
-                            return "⏫", "KEEP", Colors.CGREEN
+                            return "⬆️ ⬆️ ", "KEEP", Colors.CGREEN
                         if pct >= 5:
-                            return "⬆️", "KEEP", Colors.CGREEN
+                            return "⬆️ ", "KEEP", Colors.CGREEN
                         if pct <= -20:
-                            return "⏬", "DROP", Colors.CRED
+                            return "⬇️ ⬇️ ", "DROP", Colors.CRED
                         if pct <= -5:
-                            return "⬇️", "REVIEW", Colors.CYELLOW
+                            return "⬇️ ", "REVIEW", Colors.CYELLOW
                         # default sideway right
-                        return "➡️", "REVIEW", Colors.CYELLOW
+                        return "➡️ ", "REVIEW", Colors.CYELLOW
 
                     # Do not drop last candle, maybe it is incomplete (an issue at beginning of month)
                     # klines=klines[:-1]
