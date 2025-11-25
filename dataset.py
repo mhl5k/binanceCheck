@@ -11,7 +11,7 @@ from binance.error import ClientError
 from mhl5k.settings import Settings
 from mhl5k.colors import Colors
 from mhl5k.files import Files
-from crypto import Crypto
+from crypto import Crypto, PriceConversion
 from cryptoset import CryptoSet
 
 
@@ -25,8 +25,10 @@ def printSection(sec: str):
 class BinanceDataSet:
 
     def __init__(self, settings:Settings):
+        # set spot client
         self.spotClient = SpotClient(settings.current["apiKey"], settings.current["apiSecret"])
 
+        # list to hold all cryptosets of different times
         self.cryptoSetList:list = []
 
     # Gathering data from binance, setup
@@ -58,9 +60,14 @@ class BinanceDataSet:
         # Start gathering a new dataset from binance
         # ------------------------------------------
 
-        # all crypto class
+        # create new CryptoSet and add to list
         newCryptoSet=CryptoSet(setSpotClient=self.spotClient)
         self.cryptoSetList.append(newCryptoSet)
+
+        # Gather all price tickers
+        # ------------------------
+        print("Gathering Assets and price tickers...")
+        PriceConversion.init(accountData=account,spotClient=self.spotClient)
 
         # Account & Order Wallet Assets
         # -----------------------------
@@ -215,96 +222,21 @@ class BinanceDataSet:
                 crypto.addToPaymentDeposit(toDeposit=amount)
                 logging.debug("Deposit found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
 
-        print("Gathering volume and price growth values...")
+        print("Gathering kline values...")
         for crypto in newCryptoSet.allCryptos.values():
             try:
-                volumeSymbol="USDC"
-                klines = None
+                crypto.monthKlines["symbol"]="USDC"
+                klines = []
                 try:
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14)
                 except ClientError:
-                    volumeSymbol="BTC"
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{volumeSymbol}", interval="1M", limit=14)
+                    crypto.monthKlines["symbol"]="BTC"
+                    klines=self.spotClient.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14)
 
-                # if klines returned
-                crypto.growth = "There is not enough data to calculate growth"
-
-                if klines is not None and len(klines) > 1:
-                    def _formatNumberWithSuffix(value: float) -> str:
-                        if abs(value) >= 1_000_000:
-                            return f"{value / 1_000_000:.2f}M"
-                        elif abs(value) >= 1_000:
-                            return f"{value / 1_000:.2f}K"
-                        else:
-                            return f"{value:.2f}"
-
-                    def _trend_pct(series: list[float], months: int) -> float | None:
-                        """Prozentänderung über 'months' zwischen letztem und Wert vor months."""
-                        if len(series) <= months:
-                            return None
-                        last = series[-1]
-                        prev = series[-1 - months]
-                        if prev == 0:
-                            return None
-                        return (last - prev) / prev * 100
-
-                    def _trend_and_keep(pct: float | None) -> tuple[str, str, str]:
-                        if pct is None:
-                            return "❓", "REVIEW", Colors.CYELLOW
-                        if pct >= 20:
-                            return "⬆️ ⬆️ ", "KEEP", Colors.CGREEN
-                        if pct >= 5:
-                            return "⬆️ ", "KEEP", Colors.CGREEN
-                        if pct <= -20:
-                            return "⬇️ ⬇️ ", "DROP", Colors.CRED
-                        if pct <= -5:
-                            return "⬇️ ", "REVIEW", Colors.CYELLOW
-                        # default sideway right
-                        return "➡️ ", "REVIEW", Colors.CYELLOW
-
-                    # Do not drop last candle, maybe it is incomplete (an issue at beginning of month)
-                    # klines=klines[:-1]
-                    closes = [float(k[4]) for k in klines]   # close an Index 4
-                    volumes = [float(k[5]) for k in klines]   # volume an Index 5
-
-                    months = 6
-                    # check whether enough data
-                    if len(closes) < months+1:
-                        months = len(closes) - 1
-
-                    price_pct = _trend_pct(closes, months)
-                    vol_pct = _trend_pct(volumes, months)
-
-                    price_trend, price_keep, price_color = _trend_and_keep(price_pct)
-                    vol_trend, vol_keep, vol_color = _trend_and_keep(vol_pct)
-
-                    price_part = "n/a"
-                    if price_pct is not None:
-                        last_price = closes[-1]
-                        prev_price = closes[-1 - months]
-                        price_part = f"{price_color}{price_trend} {price_pct:+.1f}% ({prev_price} -> {last_price} {volumeSymbol}){Colors.CRESET}"
-
-                    vol_part = "n/a"
-                    if vol_pct is not None:
-                        last_vol = volumes[-1]
-                        prev_vol = volumes[-1 - months]
-                        vol_part = f"{vol_color}{vol_trend} {vol_pct:+.1f}% ({_formatNumberWithSuffix(prev_vol)} -> {_formatNumberWithSuffix(last_vol)} {volumeSymbol}){Colors.CRESET}"
-
-                    flag = "🟡 REVIEW"
-                    flag_color = Colors.CYELLOW
-                    if price_keep == "KEEP" and vol_keep == "KEEP":
-                        flag = "🟢 KEEP"
-                        flag_color = Colors.CGREEN
-                    if price_keep == "DROP" or vol_keep == "DROP":
-                        flag = "🔴 DROP"
-                        flag_color = Colors.CRED
-
-                    # store in crypto set
-                    crypto.growth = (
-                        f"{flag_color}{flag}{Colors.CRESET} | "
-                        f"Price {months}M: {price_part} | "
-                        f"Vol {months}M: {vol_part}"
-                    )
+                # Do not drop last candle, maybe it is incomplete (an issue at beginning of month)
+                # klines=klines[:-1]
+                crypto.monthKlines["closes"] = [float(k[4]) for k in klines]   # close an Index 4
+                crypto.monthKlines["volumes"] = [float(k[5]) for k in klines]   # volume an Index 5
 
             except ClientError as E:
                 logging.debug(f"ClientError: {E}")
@@ -333,13 +265,13 @@ class BinanceDataSet:
         # find the closest date which is lower or equal than the given date
         last:CryptoSet=None
         for item in self.cryptoSetList:
-            if item.timestamp < timestampToFind:
+            if item.timestamp <= timestampToFind:
                 last=item
             else:
                 return last
 
     def analyzeGrowthAndShow(self,compareNrOfDays:int):
-        printSection("Analyze")
+        printSection("Analyze datasets")
 
         # sort cryptoset list by date
         self.cryptoSetList.sort(key=lambda x: x.timestamp, reverse=False)
@@ -349,9 +281,6 @@ class BinanceDataSet:
         last:CryptoSet=self.cryptoSetList[-1] if len(self.cryptoSetList)>1 else first
         before:CryptoSet=self.cryptoSetList[-2] if len(self.cryptoSetList)>1 else last
 
-        # if before or last is none set to first
-        before = last if before is None else before
-
         # get timestamp of last gathered set
         lastTimestamp = last.timestamp
 
@@ -360,6 +289,9 @@ class BinanceDataSet:
             beforeTimestamp = lastTimestamp - compareNrOfDays*24*60*60
             # get set with this timestamp
             before = self._getCryptoSetByDate(beforeTimestamp)
+
+        # if before is None, set it to first
+        before = first if before is None else before
 
         # analyze
         print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))
@@ -396,18 +328,18 @@ class BinanceDataSet:
 
             # show difference between both
             crypto:Crypto
-            for crypto in setNewer.allCryptos:
+            for crypto in setNewer.allCryptos.values():
                 zeroCrypto=Crypto(setName=crypto,setSpotClient=self.spotClient)
 
                 cryptoOlder=zeroCrypto
-                if crypto in setOlder.allCryptos:
-                    cryptoOlder:Crypto=setOlder.allCryptos[crypto]
+                if crypto.name in setOlder.allCryptos:
+                    cryptoOlder:Crypto=setOlder.allCryptos[crypto.name]
 
                 cryptoNewer=zeroCrypto
-                if crypto in setNewer.allCryptos:
-                    cryptoNewer:Crypto=setNewer.allCryptos[crypto]
+                if crypto.name in setNewer.allCryptos:
+                    cryptoNewer:Crypto=setNewer.allCryptos[crypto.name]
 
-                showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto)
+                showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto.name)
                 showValue("Total-Plan",cryptoNewer.getTotal()-cryptoNewer.earnPlan,cryptoOlder.getTotal()-cryptoOlder.earnPlan,days)
                 showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
 
@@ -435,9 +367,100 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
-                # show growth info
-                if cryptoNewer.growth!="none":
-                    print(cryptoNewer.growth)
+                # show growth info of USDC value
+                olderUSDC = cryptoOlder.getConvertedTotalByName("USDC")
+                newerUSDC = cryptoNewer.getConvertedTotalByName("USDC")
+
+                if olderUSDC is not None and newerUSDC is not None:
+                    showValue("USDC Value",newerUSDC.total,olderUSDC.total,days)
+                else:
+                    print(f"{Colors.CYELLOW}USDC Value not available for growth calculation{Colors.CRESET}")
+
+                # show rating
+                # ----------------
+                cryptoNewer.rating = "There is not enough data to calculate growth"
+
+                # if enough kline data is available
+                if len(cryptoNewer.monthKlines["closes"]) <=1 or len(cryptoNewer.monthKlines["volumes"]) <=1:
+                    cryptoNewer.rating = f"{Colors.CYELLOW}Not enough kline data to calculate growth{Colors.CRESET}"
+                else:
+                    closes = cryptoNewer.monthKlines["closes"]
+                    volumes = cryptoNewer.monthKlines["volumes"]
+                    ratingSymbol = cryptoNewer.monthKlines["symbol"]
+
+                    def _formatNumberWithSuffix(value: float) -> str:
+                        if abs(value) >= 1_000_000:
+                            return f"{value / 1_000_000:.2f}M"
+                        elif abs(value) >= 1_000:
+                            return f"{value / 1_000:.2f}K"
+                        else:
+                            return f"{value:.2f}"
+
+                    def _trend_pct(series: list[float], months: int) -> float | None:
+                        """Prozentänderung über 'months' zwischen letztem und Wert vor months."""
+                        if len(series) <= months:
+                            return None
+                        last = series[-1]
+                        prev = series[-1 - months]
+                        if prev == 0:
+                            return None
+                        return (last - prev) / prev * 100
+
+                    def _trend_and_keep(pct: float | None) -> tuple[str, str, str]:
+                        if pct is None:
+                            return "❓", "REVIEW", Colors.CYELLOW
+                        if pct >= 20:
+                            return "⬆️ ⬆️ ", "KEEP", Colors.CGREEN
+                        if pct >= 5:
+                            return "⬆️ ", "KEEP", Colors.CGREEN
+                        if pct <= -20:
+                            return "⬇️ ⬇️ ", "DROP", Colors.CRED
+                        if pct <= -5:
+                            return "⬇️ ", "REVIEW", Colors.CYELLOW
+                        # default sideway right
+                        return "➡️ ", "REVIEW", Colors.CYELLOW
+
+                    months = 6
+                    # check whether enough data
+                    if len(closes) < months+1:
+                        months = len(closes) - 1
+
+                    price_pct = _trend_pct(closes, months)
+                    vol_pct = _trend_pct(volumes, months)
+
+                    price_trend, price_keep, price_color = _trend_and_keep(price_pct)
+                    vol_trend, vol_keep, vol_color = _trend_and_keep(vol_pct)
+
+                    price_part = "n/a"
+                    if price_pct is not None:
+                        last_price = closes[-1]
+                        prev_price = closes[-1 - months]
+                        price_part = f"{price_color}{price_trend} {price_pct:+.1f}% ({prev_price} -> {last_price} {ratingSymbol}){Colors.CRESET}"
+
+                    vol_part = "n/a"
+                    if vol_pct is not None:
+                        last_vol = volumes[-1]
+                        prev_vol = volumes[-1 - months]
+                        vol_part = f"{vol_color}{vol_trend} {vol_pct:+.1f}% ({_formatNumberWithSuffix(prev_vol)} -> {_formatNumberWithSuffix(last_vol)} {ratingSymbol}){Colors.CRESET}"
+
+                    flag = "🟡 REVIEW"
+                    flag_color = Colors.CYELLOW
+                    if price_keep == "KEEP" and vol_keep == "KEEP":
+                        flag = "🟢 KEEP"
+                        flag_color = Colors.CGREEN
+                    if price_keep == "DROP" or vol_keep == "DROP":
+                        flag = "🔴 DROP"
+                        flag_color = Colors.CRED
+
+                    # store in crypto set
+                    cryptoNewer.rating = (
+                        f"{flag_color}{flag}{Colors.CRESET} | "
+                        f"Price {months}M: {price_part} | "
+                        f"Vol {months}M: {vol_part}"
+                    )
+
+                # show growth string
+                print(cryptoNewer.rating)
 
             showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
@@ -449,9 +472,11 @@ class BinanceDataSet:
             o=setOlder.totalUSDC.total-setOlder.totalUSDC.deposit
             showValue("∑ USDC -Depo",n,o,days)
 
-        # differenc growth between last and first and last and before
-        printSection(f"Last to first... {last.time} to {first.time}")
-        showDiff(last,first)
+        # differenc growth between last and first
+        # printSection(f"Last to first... {last.time} to {first.time}")
+        # showDiff(last,first)
+
+        # differenc growth between last and before
         printSection(f"Last to before... {last.time} to {before.time}")
         showDiff(last,before)
 
