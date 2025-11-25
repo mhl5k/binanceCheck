@@ -22,14 +22,17 @@ class CryptoSet:
 
         def updateTotals(self,allCryptos:dict):
             # update all cryptos totals
-            for ckey in allCryptos:
-                c:Crypto=allCryptos[ckey]
-                logging.debug("Updating crypto %s" % (ckey))
-                currentTotal=c.updateTotalIn(self.name)
-                self.total+=currentTotal.total
-                self.deposit+=currentTotal.deposit
+            c:Crypto = None
+            for c in allCryptos.values():
+                try:
+                    logging.debug(f"Updating crypto {c.name}")
+                    currentTotal=c.updateTotalIn(self.name)
+                    self.total+=currentTotal.total
+                    self.deposit+=currentTotal.deposit
+                except ValueError as E:
+                    logging.error(f"Error updating crypto {c.name}: {E}")
 
-            logging.debug(f"{self.name} Totals: {self.total:.8f}, Total-Deposit: {self.deposit:.8f}")
+            logging.debug(f"{self.name} Total: {self.total:.8f}, Total-Deposit: {self.deposit:.8f}")
 
         def toJSON(self) -> dict:
             jsonDict = {
@@ -66,8 +69,7 @@ class CryptoSet:
 
     def toJSON(self) -> dict:
         cryptoList:list = []
-        for key in self.allCryptos:
-            crypto:Crypto=self.allCryptos[key]
+        for crypto in self.allCryptos.values():
             cryptoList.append(crypto.toJSON())
 
         jsonDict = {
@@ -120,7 +122,7 @@ class CryptoSet:
         self.timestamp:float=currentdatetime.timestamp()
 
         # dict for all cryptos
-        self.allCryptos:dict = dict()
+        self.allCryptos:dict[str, Crypto] = {}
 
         # uuid
         self.uuid=uuid.uuid4()

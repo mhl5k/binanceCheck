@@ -6,8 +6,97 @@ import json
 import logging
 
 from binance.spot import Spot as SpotClient
-# import binance api exceptions
-from binance.error import ClientError
+
+
+class PriceConversion:
+
+    # all price tickers
+    allAssets:list[str] = []
+    allGatheredPriceTickers:dict[str, float] = {}
+
+    @staticmethod
+    def init(accountData,spotClient:SpotClient):
+        logging.debug("Generating list of all assets")
+        PriceConversion.allAssets = [entry["asset"] for entry in accountData["balances"]]
+
+        logging.debug("Initializing price ticker once from binance...")
+        rawlist=spotClient.ticker_price()
+        # convert to dict with "ETHBTC":"0.03270000","LTCBTC":"0.00097200"
+        PriceConversion.allGatheredPriceTickers = {
+            entry["symbol"]: float(entry["price"]) for entry in rawlist
+        }
+        logging.debug(json.dumps(PriceConversion.allGatheredPriceTickers, indent=4, sort_keys=False))
+
+    @staticmethod
+    def _getPriceFromGatheredPriceTickers(symbolPair: str) -> float:
+        # check whether symbol is in gathered tickers
+        if symbolPair in PriceConversion.allGatheredPriceTickers:
+            price:float = float(PriceConversion.allGatheredPriceTickers[symbolPair])
+            logging.debug(f"Found price for {symbolPair} in gathered tickers: {price}")
+            return price
+        else:
+            error=f"Price for {symbolPair} not found in gathered tickers!"
+            logging.debug(error)
+            raise ValueError(error)
+
+    # return price/value for a given crypto name and amount
+    # default conversion is to BTC, but can every crypto
+    # if not found, function will try to convert over USDC
+    # can be called from outside
+    @staticmethod
+    def getPriceForCrypto(fromCrypto:str, fromCryptoAmount:float, toCrypto:str, allowRoute:bool=True) -> float:
+        # try to convert
+        logging.debug(f"--- getPriceForCrypto --- {fromCrypto}{toCrypto}  ---")
+        logging.debug(f"Try to convert {fromCryptoAmount:.8f} {fromCrypto} to {toCrypto}")
+
+        # 1. No conversion needed
+        if fromCrypto==toCrypto:
+            logging.debug(toCrypto+" given, no conversion required.")
+            return fromCryptoAmount
+
+        # 2. Direct Pair: e.g. ETHBTC
+        pair = fromCrypto + toCrypto
+        try:
+            price = PriceConversion._getPriceFromGatheredPriceTickers(pair)
+            value_for_crypto = fromCryptoAmount * price
+            logging.debug(f"Using direct pair {pair}: {value_for_crypto:.8f} {toCrypto}")
+            return value_for_crypto
+        except ValueError:
+            logging.debug(f"Direct pair {pair} not found.")
+
+        # 3. Reverse Pair: e.g. BTCETH
+        reverse_pair = toCrypto + fromCrypto
+        try:
+            price = PriceConversion._getPriceFromGatheredPriceTickers(reverse_pair)
+            value_for_crypto = fromCryptoAmount / price
+            logging.debug(f"Using reverse pair {reverse_pair}: {value_for_crypto:.8f} {toCrypto}")
+            return value_for_crypto
+        except ValueError:
+            logging.debug(f"Reverse pair {reverse_pair} not found.")
+
+        # 4. Fallback: over USDC, if possible
+        route_list = ["USDC", "USDT"]
+        if allowRoute:
+            for route_over in route_list:
+                if fromCrypto != route_over and toCrypto != route_over:
+                    try:
+                        logging.debug(f"Trying to route over {route_over}...")
+                        routed_value = PriceConversion.getPriceForCrypto(fromCrypto, fromCryptoAmount, route_over, False)
+                        value_for_crypto = PriceConversion.getPriceForCrypto(route_over, routed_value, toCrypto, False)
+                        logging.debug(f"{route_over} routed {fromCrypto}->{toCrypto}: {value_for_crypto:.8f} {toCrypto}")
+                        return value_for_crypto
+                    except ValueError:
+                        logging.debug(f"Routing over {route_over} failed for {fromCrypto}->{toCrypto}!")
+
+        # 5. Alles gescheitert -> Debughilfe + Fehler
+        # mögliche Paare zum Debuggen ausgeben
+        possible_pairs = []
+        for key in PriceConversion.allGatheredPriceTickers:
+            if key.startswith(fromCrypto) or key.endswith(fromCrypto):
+                possible_pairs.append(key)
+
+        # nach außen klar signalisieren: keine Conversion möglich
+        raise ValueError(f"Cannot convert {fromCrypto} to {toCrypto}, possible pairs: {possible_pairs if len(possible_pairs)>0 else 'none'}")
 
 
 class Crypto:
@@ -36,9 +125,6 @@ class Crypto:
             self.name=jsonContent["name"]
             self.total=float(jsonContent["total"])
             self.deposit=float(jsonContent["deposit"])
-
-    # shared across instances
-    expectedGrowthPercentage:float=0.001
 
     def getTotal(self) -> float:
         return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnLocked
@@ -69,10 +155,10 @@ class Crypto:
     def updateTotalIn(self,toSymbol:str) -> ConvertedTotal:
         try:
             logging.debug(f"Updating total {toSymbol} for {self.name}")
-            total:float=self._getPriceForCrypto(self.name,self.getTotal(),toSymbol)
+            total:float=PriceConversion.getPriceForCrypto(self.name,self.getTotal(),toSymbol)
 
-            logging.debug("Updating total Deposit in {toSymbol} for {self.name}")
-            deposit:float=self._getPriceForCrypto(self.name,self.paymentDeposit,toSymbol)
+            logging.debug(f"Updating total Deposit in {toSymbol} for {self.name}")
+            deposit:float=PriceConversion.getPriceForCrypto(self.name,self.paymentDeposit,toSymbol)
 
             t:Crypto.ConvertedTotal=Crypto.ConvertedTotal(toSymbol)
             t.set(total,deposit)
@@ -80,7 +166,7 @@ class Crypto:
 
             return t
 
-        except ClientError as E:
+        except ValueError as E:
             raise E
 
     def toJSON(self) -> dict:
@@ -97,7 +183,6 @@ class Crypto:
             "orderWalletTotal": "{:.8f}".format(self.orderWalletTotal),
             "liquidSwapValue": "{:.8f}".format(self.liquidSwapValue),
             "totalValue": "{:.8f}".format(self.getTotal()),
-            "expectedGrowthPercentage": "{:.8f}".format(self.getTotal()*self.expectedGrowthPercentage),
             # V2
             "paymentDeposit": "{:.8f}".format(self.paymentDeposit),
             # V3
@@ -107,8 +192,8 @@ class Crypto:
             # V5
             "earnFlexible": "{:.8f}".format(self.earnFlexible),
             "earnLocked": "{:.8f}".format(self.earnLocked),
-            # V6
-            "growth": self.growth
+            # V7
+            "klines": self.monthKlines
         }
 
         logging.debug(json.dumps(jsonDict, indent=4, sort_keys=False))
@@ -148,66 +233,22 @@ class Crypto:
             self.earnLocked=float(jsonContent["earnLocked"])
         # version 6
         if "growth" in jsonContent:
-            self.growth = str(jsonContent["growth"])
+            self.rating = str(jsonContent["growth"])
+        # version 7
+        if "klines" in jsonContent:
+            self.monthKlines=jsonContent["klines"]
 
-    def _getPriceFromBinance(self,symbol: str) -> float:
-        # get price from gathered tickers if possible
-        if symbol in self.allGatheredPriceTickers:
-            logging.debug(f"Found price for {symbol} in gathered tickers: {self.allGatheredPriceTickers[symbol]}")
-            return self.allGatheredPriceTickers[symbol]
-        else:
-            # get price from binance
-            try:
-                logging.debug(f"Getting price from binance for {symbol}")
-                ticker=self.spotClient.ticker_price(symbol)
-                price:float = float(ticker["price"])
-                self.allGatheredPriceTickers[symbol]=price
-                logging.debug(f"Gathering price for {symbol}: {price}")
-                return float(price)
-            except ClientError as E:
-                raise E
+    def getConvertedTotalByName(self, totalSymbol: str) -> "Crypto.ConvertedTotal | None":
+        """
+        Returns the Crypto.ConvertedTotal object for the given crypto symbol.
 
-    # return price/value for a given crypto name and amount
-    # default conversion is to BTC, but can every crypto
-    # if not found, function will try to convert over USDC
-    # can be called from outside
-    def _getPriceForCrypto(self,fromCrypto:str, fromCryptoAmount:float, toCrypto:str) -> float:
-        valueForCrypto=0.0
-
-        # try to convert
-        logging.debug(f"--- getPriceForCrypto --- {fromCrypto}{toCrypto}  ---")
-        logging.debug(f"Try to convert {fromCryptoAmount:.8f} {fromCrypto} to {toCrypto}")
-
-        # try to get price for given crypto
-        if fromCrypto==toCrypto:
-            logging.debug(toCrypto+" given, no conversion required ;)")
-            valueForCrypto=fromCryptoAmount
-        else:
-            try:
-                # try e.g. CRYPTO-BTC first
-                price=self._getPriceFromBinance(fromCrypto+toCrypto)
-                valueForCrypto=fromCryptoAmount*float(price)
-            except ClientError:
-                try:
-                    # not found, then try other way around: e.g. BTC-CRYPTO
-                    logging.debug(f"Ticker not found {fromCrypto} to {toCrypto}!")
-                    logging.debug(f"Trying to get {toCrypto} to {fromCrypto}")
-                    price=self._getPriceFromBinance(toCrypto+fromCrypto)
-                    valueForCrypto=fromCryptoAmount/float(price)
-                except ClientError:
-                    # nothing found, raise error
-                    logging.debug(f"Ticker not found {toCrypto} to {fromCrypto}!")
-                    if toCrypto!="USDC" and fromCrypto!="USDC":
-                        logging.debug("Trying to get a USDC variant")
-                        USDCValue=self._getPriceForCrypto(fromCrypto, fromCryptoAmount, "USDC")
-                        # has USDC then USDC to btc
-                        valueForCrypto=self._getPriceForCrypto("USDC", USDCValue, "BTC")
-                    else:
-                        # trading to BTC or USDC does not exists
-                        valueForCrypto=0.0
-
-        logging.debug(f"{fromCrypto} to {toCrypto} price: {valueForCrypto:.8f}")
-        return valueForCrypto
+        :param totalSymbol: the symbol of the crypto to find the total for
+        :return: the Crypto.ConvertedTotal object for the given crypto symbol, or None if not found
+        """
+        for entry in self.allTotals:
+            if entry.name == totalSymbol:
+                return entry
+        return None
 
     def __init__(self, setName:str, setSpotClient:SpotClient):
         self.name=setName
@@ -225,11 +266,8 @@ class Crypto:
         self.paymentDeposit:float = 0.0
         self.paymentWithdraw:float = 0.0
 
-        # dict of all gathered ticker prices
-        self.allGatheredPriceTickers:dict = {}
-
         # dict for all totals in different currencies
-        self.allTotals:list = []
+        self.allTotals:list[Crypto.ConvertedTotal] = []
 
         # set whether crypto has a earn flexible or locked possibility
         self.hasFlexiblePossibility:bool = False
@@ -237,5 +275,12 @@ class Crypto:
         self.hasLockedPossibility:bool = False
         self.canUseLocked:bool = False
 
-        # volumes
-        self.growth:str = "none"
+        # monthly klines for volume and price calculations
+        self.monthKlines:dict = {
+            "symbol": "USDC",
+            "volumes": [],
+            "closes": []
+        }
+
+        # rating
+        self.rating: str = "Rating not yet calculated"
