@@ -6,8 +6,12 @@ from datetime import datetime
 import json
 import logging
 
-from binance.spot import Spot as SpotClient
-from binance.error import ClientError
+from binance_sdk_wallet import Wallet, WALLET_REST_API_PROD_URL
+from binance_sdk_spot import Spot
+from binance_sdk_simple_earn import SimpleEarn
+from binance_sdk_fiat import Fiat
+from binance_common.errors import ClientError, BadRequestError
+from binance_common.configuration import ConfigurationRestAPI
 from mhl5k.settings import Settings
 from mhl5k.colors import Colors
 from mhl5k.files import Files
@@ -25,8 +29,12 @@ def printSection(sec: str):
 class BinanceDataSet:
 
     def __init__(self, settings:Settings):
-        # set spot client
-        self.spotClient = SpotClient(settings.current["apiKey"], settings.current["apiSecret"])
+        # set client
+        configuration = ConfigurationRestAPI(settings.current["apiKey"], settings.current["apiSecret"], base_path=WALLET_REST_API_PROD_URL)
+        self.walletClient = Wallet(config_rest_api=configuration)
+        self.spotClient = Spot(config_rest_api=configuration)
+        self.earnClient = SimpleEarn(config_rest_api=configuration)
+        self.fiatClient = Fiat(config_rest_api=configuration)
 
         # list to hold all cryptosets of different times
         self.cryptoSetList:list = []
@@ -36,10 +44,11 @@ class BinanceDataSet:
     def gatherNewDataSet(self):
         # check whether API works, otherwise throw an early exception
         try:
-            account=self.spotClient.account()
+            account_info = self.spotClient.rest_api.get_account()
+            account = account_info.data().to_dict()
             logging.debug(json.dumps(account, indent=4, sort_keys=False))
-        except ClientError as E:
-            raise E
+        except (ClientError, BadRequestError) as e:
+            raise e
 
         # check whether a new dataset should be gathered
         lastTimestamp=0
@@ -61,7 +70,7 @@ class BinanceDataSet:
         # ------------------------------------------
 
         # create new CryptoSet and add to list
-        newCryptoSet=CryptoSet(setSpotClient=self.spotClient)
+        newCryptoSet=CryptoSet(setWalletClient=self.walletClient)
         self.cryptoSetList.append(newCryptoSet)
 
         # Gather all price tickers
@@ -84,7 +93,7 @@ class BinanceDataSet:
                 crypto.addToWalletAndOrderValue(toAddFree=free,toAddLocked=locked)
 
                 # check whether flexible is available
-                flexibleProductList=self.spotClient.get_simple_earn_flexible_product_list(asset=name,size=20)
+                flexibleProductList=self.earnClient.rest_api.get_simple_earn_flexible_product_list(asset=name,size=20).data().to_dict()
                 logging.debug(flexibleProductList)
                 soldOut=0
                 for s in flexibleProductList["rows"]:
@@ -102,7 +111,7 @@ class BinanceDataSet:
         count=1
         maxcount=1
         while count<=maxcount:
-            locked = self.spotClient.get_locked_product_position(current=count,size=100)
+            locked = self.earnClient.rest_api.get_locked_product_position(current=count,size=100).data().to_dict()
             logging.debug(locked)
             amount:int=int(locked["total"])
             # roundup amount/100
@@ -119,7 +128,7 @@ class BinanceDataSet:
         count=1
         maxcount=1
         while count<=maxcount:
-            flexible=self.spotClient.get_flexible_product_position(current=count,size=100)
+            flexible=self.earnClient.rest_api.get_flexible_product_position(current=count,size=100).data().to_dict()
             logging.debug(flexible)
             amount:int=int(flexible["total"])
             # roundup amount/100
@@ -132,7 +141,7 @@ class BinanceDataSet:
                 crypto.addToFlexible(valueInFlexible)
 
                 # check whether locked is possible to mark it
-                lockedProductList=self.spotClient.get_simple_earn_locked_product_list(asset=name,size=20)
+                lockedProductList=self.earnClient.rest_api.get_simple_earn_locked_product_list(asset=name,size=20).data().to_dict()
                 logging.debug(lockedProductList)
                 soldOut=0
                 for s in lockedProductList["rows"]:
@@ -145,20 +154,6 @@ class BinanceDataSet:
                 logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}, minPurchaseReached: {crypto.canUseLocked}")
 
             count+=1
-
-        print("Gathering Plans...")
-        plans=self.spotClient.get_list_of_plans(planType="PORTFOLIO")
-        logging.debug(plans)
-        for s in plans["plans"]:
-            planID=s["planId"]
-            params={"planId": planID}
-            planDetails=self.spotClient.query_holding_details_of_the_plan(**params)
-            # print(planDetails)
-            for assetDetail in planDetails["details"]:
-                # print(assetDetail)
-                name=assetDetail["targetAsset"]
-                crypto=newCryptoSet.getCryptoByName(name)
-                crypto.addToPlan(float(assetDetail["purchasedAmount"]))
 
         # Liquidity Pool values
         # ---------------------
@@ -183,7 +178,7 @@ class BinanceDataSet:
         print("Gathering FIAT Buy/Payment Deposits...")
         DEPOSIT_BUY=0
         # WITHDRAW_SELL=1
-        fiatHistory=self.spotClient.fiat_payment_history(transactionType=DEPOSIT_BUY)
+        fiatHistory=self.fiatClient.rest_api.get_fiat_payments_history(transaction_type=str(DEPOSIT_BUY)).data().to_dict()
         logging.debug(json.dumps(fiatHistory, indent=4, sort_keys=False))
         if "data" in fiatHistory:
             for data in fiatHistory["data"]:
@@ -204,7 +199,7 @@ class BinanceDataSet:
         # gather deposit crypto history and add to set if it is in that month
         # --------------------------------------------------------------------
         print("Gathering Crypto Deposits...")
-        cryptoDepositHistory=self.spotClient.deposit_history()
+        cryptoDepositHistory=[entry.to_dict() for entry in self.walletClient.rest_api.deposit_history().data()]
         logging.debug(json.dumps(cryptoDepositHistory, indent=4, sort_keys=False))
         for data in cryptoDepositHistory:
             logging.debug(json.dumps(data, indent=4, sort_keys=False))
@@ -228,17 +223,17 @@ class BinanceDataSet:
                 crypto.monthKlines["symbol"]="USDC"
                 klines = []
                 try:
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14)
-                except ClientError:
+                    klines=self.spotClient.rest_api.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14).data()
+                except (ClientError, BadRequestError):
                     crypto.monthKlines["symbol"]="BTC"
-                    klines=self.spotClient.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14)
+                    klines=self.spotClient.rest_api.klines(symbol=f"{crypto.name}{crypto.monthKlines["symbol"]}", interval="1M", limit=14).data()
 
                 # Do not drop last candle, maybe it is incomplete (an issue at beginning of month)
                 # klines=klines[:-1]
                 crypto.monthKlines["closes"] = [float(k[4]) for k in klines]   # close an Index 4
                 crypto.monthKlines["volumes"] = [float(k[5]) for k in klines]   # volume an Index 5
 
-            except ClientError as E:
+            except (ClientError, BadRequestError) as E:
                 logging.debug(f"ClientError: {E}")
 
         # calculate total BTC of set after gathering all cryptos
@@ -248,7 +243,7 @@ class BinanceDataSet:
     # Snapshots
     def snapshots(self):
         printSection("Account snaptshots:")
-        coinInfo=self.spotClient.account_snapshot(type="SPOT")
+        coinInfo=self.walletClient.rest_api.daily_account_snapshot(type="SPOT").data().to_dict()
         # print(coinInfo)
         for s in coinInfo["snapshotVos"]:
             # time, convert from milliseconds
@@ -329,7 +324,7 @@ class BinanceDataSet:
             # show difference between both
             crypto:Crypto
             for crypto in setNewer.allCryptos.values():
-                zeroCrypto=Crypto(setName=crypto,setSpotClient=self.spotClient)
+                zeroCrypto=Crypto(setName=crypto,setWalletClient=self.walletClient)
 
                 cryptoOlder=zeroCrypto
                 if crypto.name in setOlder.allCryptos:
@@ -483,7 +478,7 @@ class BinanceDataSet:
     def fromJSON(self,jsonContent):
         entry:dict
         for entry in jsonContent["binanceDataSet"]:
-            newCryptoSet=CryptoSet(setSpotClient=self.spotClient)
+            newCryptoSet=CryptoSet(setWalletClient=self.walletClient)
             newCryptoSet.fromJSON(entry)
             self.cryptoSetList.append(newCryptoSet)
 

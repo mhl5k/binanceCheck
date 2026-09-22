@@ -6,14 +6,15 @@
 import logging
 import argparse
 
-from binance.spot import Spot as SpotClient
-from binance.lib.utils import config_logging
+from binance_common.configuration import ConfigurationRestAPI
+from binance_common.constants import CONVERT_REST_API_PROD_URL
+from binance_sdk_convert.convert import Convert
 
 from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.3"
+VERSION = "0.4"
 
 
 # Functions and constants
@@ -42,10 +43,14 @@ if __name__ == "__main__":
 
         # logging
         logging.basicConfig(filename=Files.getLoggingFilenameWithPath(extension="Convert"), level=logging.DEBUG, filemode="w")
-        config_logging(logging, logging.DEBUG)
 
-        # Binance Data Set
-        spotClient = SpotClient(settings.current["apiKey"], settings.current["apiSecret"])
+        configuration = ConfigurationRestAPI(
+            api_key=settings.current["apiKey"],
+            api_secret=settings.current["apiSecret"],
+            base_path=CONVERT_REST_API_PROD_URL,
+        )
+
+        convertClient = Convert(config_rest_api=configuration)
 
         # convert
         # amount is # of currencies to convert + keep a portion for the original currency
@@ -54,14 +59,24 @@ if __name__ == "__main__":
         amount = args.value / number_portion
         # cut amount at 8 decimal places
         amount = round(amount, 8)
+
         print(f"Converting {args.value} {args.fromCurrency} to {args.toCurrency} each {amount}")
         for eachTo in args.toCurrency:
             print(f"Converting {amount} {args.fromCurrency} to {eachTo}")
-            quote = spotClient.send_quote_request(args.fromCurrency,eachTo,fromAmount=amount,walletType="SPOT_EARN")
+
+            quote_response = convertClient.rest_api.send_quote_request(
+                from_asset=args.fromCurrency,
+                to_asset=eachTo,
+                from_amount=amount,
+                wallet_type="SPOT_EARN",
+            )
+
+            quote = quote_response.data()
+
             print(f"Request: {quote}")
-            if "quoteId" in quote:
-                # {'ratio': '55.0539', 'inverseRatio': '0.018164', 'validTimestamp': 1774010843257, 'toAmount': '1.98194159', 'fromAmount': '0.036'}
-                accepted = spotClient.accept_quote(quote["quoteId"])
+            if quote.quote_id:
+                accepted_response = convertClient.rest_api.accept_quote(quote_id=quote.quote_id)
+                accepted = accepted_response.data()
                 print(f"Accepted: {accepted}")
             else:
                 print(f"Error, quote ID not found: {quote}")
