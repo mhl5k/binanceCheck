@@ -5,7 +5,8 @@
 import json
 import logging
 
-from binance.spot import Spot as SpotClient
+from binance_sdk_wallet import Wallet
+from binance_sdk_spot import Spot
 
 
 class PriceConversion:
@@ -15,15 +16,15 @@ class PriceConversion:
     allGatheredPriceTickers:dict[str, float] = {}
 
     @staticmethod
-    def init(accountData,spotClient:SpotClient):
+    def init(accountData,spotClient:Spot):
         logging.debug("Generating list of all assets")
         PriceConversion.allAssets = [entry["asset"] for entry in accountData["balances"]]
 
         logging.debug("Initializing price ticker once from binance...")
-        rawlist=spotClient.ticker_price()
+        rawlist=spotClient.rest_api.ticker_price().data().actual_instance
         # convert to dict with "ETHBTC":"0.03270000","LTCBTC":"0.00097200"
         PriceConversion.allGatheredPriceTickers = {
-            entry["symbol"]: float(entry["price"]) for entry in rawlist
+            entry.symbol: float(entry.price) for entry in rawlist
         }
         logging.debug(json.dumps(PriceConversion.allGatheredPriceTickers, indent=4, sort_keys=False))
 
@@ -250,9 +251,9 @@ class Crypto:
                 return entry
         return None
 
-    def __init__(self, setName:str, setSpotClient:SpotClient):
+    def __init__(self, setName:str, setWalletClient:Wallet):
         self.name=setName
-        self.spotClient=setSpotClient
+        self.walletClient=setWalletClient
 
         self.orderWalletLocked:float=0.0
         self.orderWalletFree:float=0.0

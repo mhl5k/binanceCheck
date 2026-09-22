@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 
-from binance.spot import Spot as SpotClient
+from binance_sdk_wallet import Wallet
 from crypto import Crypto
 
 
@@ -54,7 +54,7 @@ class CryptoSet:
         if name in self.allCryptos:
             return self.allCryptos[name]
         else:
-            newCrypto=Crypto(setName=name,setSpotClient=self.spotClient)
+            newCrypto=Crypto(setName=name,setWalletClient=self.walletClient)
             self.allCryptos[name]=newCrypto
             return newCrypto
 
@@ -97,7 +97,7 @@ class CryptoSet:
         cryptoDict=jsonContent["crypto"]
         for cryptoContent in cryptoDict:
             asset=cryptoContent["asset"]
-            newCrypto=Crypto(setName=asset,setSpotClient=self.spotClient)
+            newCrypto=Crypto(setName=asset,setWalletClient=self.walletClient)
             newCrypto.fromJSON(cryptoContent)
             self.allCryptos[asset]=newCrypto
         # v1
@@ -113,9 +113,9 @@ class CryptoSet:
             if "USDC" in jsonContent["totals"]:
                 self.totalUSDC.fromJSON(jsonContent["totals"]["USDC"])
 
-    def __init__(self, setSpotClient:SpotClient):
+    def __init__(self, setWalletClient:Wallet):
         # binance client object
-        self.spotClient=setSpotClient
+        self.walletClient=setWalletClient
 
         currentdatetime = datetime.now()
         self.time:str=str(currentdatetime)

@@ -1,2 +1,7 @@
-binance-connector
+binance-sdk-wallet
+binance-sdk-convert
 requests
+binance-sdk-spot
+binance-sdk-simple-earn
+binance-sdk-fiat
+binance-common

@@ -5,13 +5,12 @@
 
 import logging
 import argparse
-from binance.lib.utils import config_logging
 from dataset import BinanceDataSet
 from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "0.70"
+VERSION = "1.0"
 
 
 # Functions and constants
@@ -39,7 +38,6 @@ if __name__ == "__main__":
         # Logging
         settings = Settings()
         logging.basicConfig(filename=Files.getLoggingFilenameWithPath(extension="Check"), level=logging.DEBUG, filemode="w")
-        config_logging(logging, logging.DEBUG)
 
         # Binance Data Set
         binanceAccountDataSet = BinanceDataSet(settings)
