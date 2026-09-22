@@ -45,8 +45,8 @@ class BinanceDataSet:
         # check whether API works, otherwise throw an early exception
         try:
             account_info = self.spotClient.rest_api.get_account()
-            account = account_info.data().to_dict()
-            logging.debug(json.dumps(account, indent=4, sort_keys=False))
+            account = account_info.data()
+            logging.debug(account)
         except (ClientError, BadRequestError) as e:
             raise e
 
@@ -82,10 +82,10 @@ class BinanceDataSet:
         # -----------------------------
         print("Gathering Spot/Order Assets...")
 
-        for accountAsset in account["balances"]:
-            name:str=accountAsset["asset"]
-            free=float(accountAsset["free"])
-            locked=float(accountAsset["locked"])
+        for accountAsset in account.balances:
+            name:str=accountAsset.asset
+            free=float(accountAsset.free)
+            locked=float(accountAsset.locked)
             # do not calc LD values, will be done in savings later
             amount=free+locked
             if amount>0.0 and not name.startswith("LD"):
@@ -93,15 +93,15 @@ class BinanceDataSet:
                 crypto.addToWalletAndOrderValue(toAddFree=free,toAddLocked=locked)
 
                 # check whether flexible is available
-                flexibleProductList=self.earnClient.rest_api.get_simple_earn_flexible_product_list(asset=name,size=20).data().to_dict()
+                flexibleProductList=self.earnClient.rest_api.get_simple_earn_flexible_product_list(asset=name,size=20).data()
                 logging.debug(flexibleProductList)
                 soldOut=0
-                for s in flexibleProductList["rows"]:
-                    soldOut += 1 if s["isSoldOut"]==True else 0
-                    if free >= float(s["minPurchaseAmount"]):
+                for s in flexibleProductList.rows:
+                    soldOut += 1 if s.is_sold_out==True else 0
+                    if free >= float(s.min_purchase_amount):
                         crypto.canUseFlexible=True
 
-                hasFlexibleCount=int(flexibleProductList["total"])
+                hasFlexibleCount=int(flexibleProductList.total)
                 crypto.hasFlexiblePossibility=hasFlexibleCount>0 and soldOut<hasFlexibleCount
                 logging.debug(f" {name} hasFlexibleCount: {hasFlexibleCount}, soldOut: {soldOut}, hasFlexiblePossibility: {crypto.hasFlexiblePossibility}, minPurchaseReached: {crypto.canUseFlexible}")
 
@@ -111,7 +111,8 @@ class BinanceDataSet:
         count=1
         maxcount=1
         while count<=maxcount:
-            locked = self.earnClient.rest_api.get_locked_product_position(current=count,size=100).data().to_dict()
+            # The SDK returns a dict here because numeric duration fields fail its model validation.
+            locked = self.earnClient.rest_api.get_locked_product_position(current=count,size=100).data()
             logging.debug(locked)
             amount:int=int(locked["total"])
             # roundup amount/100
@@ -128,28 +129,30 @@ class BinanceDataSet:
         count=1
         maxcount=1
         while count<=maxcount:
-            flexible=self.earnClient.rest_api.get_flexible_product_position(current=count,size=100).data().to_dict()
+            flexible=self.earnClient.rest_api.get_flexible_product_position(current=count,size=100).data()
             logging.debug(flexible)
-            amount:int=int(flexible["total"])
+            amount:int=int(flexible.total)
             # roundup amount/100
             maxcount = (amount + 99) // 100
-            for s in flexible["rows"]:
+            for s in flexible.rows:
                 # print(s)
-                name=s["asset"]
+                name=s.asset
                 crypto=newCryptoSet.getCryptoByName(name)
-                valueInFlexible=float(s["totalAmount"])
+                valueInFlexible=float(s.total_amount)
                 crypto.addToFlexible(valueInFlexible)
 
                 # check whether locked is possible to mark it
-                lockedProductList=self.earnClient.rest_api.get_simple_earn_locked_product_list(asset=name,size=20).data().to_dict()
+                lockedProductList=self.earnClient.rest_api.get_simple_earn_locked_product_list(asset=name,size=20).data()
                 logging.debug(lockedProductList)
                 soldOut=0
-                for s in lockedProductList["rows"]:
-                    soldOut += 1 if s["detail"]["isSoldOut"]==True else 0
-                    if valueInFlexible >= float(s["quota"]["minimum"]):
+                for s in lockedProductList.rows:
+                    detail = s.detail
+                    quota = s.quota
+                    soldOut += 1 if detail.is_sold_out==True else 0
+                    if valueInFlexible >= float(quota.minimum):
                         crypto.canUseLocked=True
 
-                hasLockedCount=int(lockedProductList["total"])
+                hasLockedCount=int(lockedProductList.total)
                 crypto.hasLockedPossibility=hasLockedCount>0 and soldOut<hasLockedCount
                 logging.debug(f" {name} hasLockedCount: {hasLockedCount}, soldOut: {soldOut}, hasLockedPossibility: {crypto.hasLockedPossibility}, minPurchaseReached: {crypto.canUseLocked}")
 
@@ -178,42 +181,42 @@ class BinanceDataSet:
         print("Gathering FIAT Buy/Payment Deposits...")
         DEPOSIT_BUY=0
         # WITHDRAW_SELL=1
-        fiatHistory=self.fiatClient.rest_api.get_fiat_payments_history(transaction_type=str(DEPOSIT_BUY)).data().to_dict()
-        logging.debug(json.dumps(fiatHistory, indent=4, sort_keys=False))
-        if "data" in fiatHistory:
-            for data in fiatHistory["data"]:
-                logging.debug(json.dumps(data, indent=4, sort_keys=False))
+        fiatHistory=self.fiatClient.rest_api.get_fiat_payments_history(transaction_type=str(DEPOSIT_BUY)).data()
+        logging.debug(fiatHistory)
+        if fiatHistory.data is not None:
+            for data in fiatHistory.data:
+                logging.debug(data)
                 # get timestamp of fiat payment
-                timestamp=int(data["updateTime"])/1000  # milliseconds to seconds
+                timestamp=int(data.update_time)/1000  # milliseconds to seconds
                 paymentTimestamp = datetime.fromtimestamp(timestamp).timestamp()
 
                 # timestamp between current and last time
                 if lastTimestamp <= paymentTimestamp <= newCryptoSet.timestamp:
                     # get crypto from set
-                    cryptoName=data["cryptoCurrency"]
+                    cryptoName=data.crypto_currency
                     crypto:Crypto=newCryptoSet.getCryptoByName(cryptoName)
-                    amount=float(data["obtainAmount"])
+                    amount=float(data.obtain_amount)
                     crypto.addToPaymentDeposit(toDeposit=amount)
                     logging.debug("FIAT Buy/Payment found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
 
         # gather deposit crypto history and add to set if it is in that month
         # --------------------------------------------------------------------
         print("Gathering Crypto Deposits...")
-        cryptoDepositHistory=[entry.to_dict() for entry in self.walletClient.rest_api.deposit_history().data()]
-        logging.debug(json.dumps(cryptoDepositHistory, indent=4, sort_keys=False))
+        cryptoDepositHistory=self.walletClient.rest_api.deposit_history().data()
+        logging.debug(cryptoDepositHistory)
         for data in cryptoDepositHistory:
-            logging.debug(json.dumps(data, indent=4, sort_keys=False))
+            logging.debug(data)
             # get timestamp of fiat payment
-            timestamp=int(data["insertTime"])/1000  # milliseconds to seconds
+            timestamp=int(data.insert_time)/1000  # milliseconds to seconds
             paymentTimestamp = datetime.fromtimestamp(timestamp).timestamp()
 
             # add only to this set when month is same
             logging.debug(f"Timestamps: last: {lastTimestamp} - payment: {paymentTimestamp} - new: {newCryptoSet.timestamp}")
             if lastTimestamp <= paymentTimestamp <= newCryptoSet.timestamp:
                 # get crypto from set
-                cryptoName=data["coin"]
+                cryptoName=data.coin
                 crypto:Crypto=newCryptoSet.getCryptoByName(cryptoName)
-                amount=float(data["amount"])
+                amount=float(data.amount)
                 crypto.addToPaymentDeposit(toDeposit=amount)
                 logging.debug("Deposit found %s %s %.8f" % (cryptoName,paymentTimestamp,amount))
 
@@ -243,14 +246,15 @@ class BinanceDataSet:
     # Snapshots
     def snapshots(self):
         printSection("Account snaptshots:")
-        coinInfo=self.walletClient.rest_api.daily_account_snapshot(type="SPOT").data().to_dict()
+        coinInfo=self.walletClient.rest_api.daily_account_snapshot(type="SPOT").data()
         # print(coinInfo)
-        for s in coinInfo["snapshotVos"]:
+        for s in coinInfo.snapshot_vos:
             # time, convert from milliseconds
-            timestamp=s["updateTime"]/1000
+            timestamp=s.update_time/1000
             date = datetime.fromtimestamp(timestamp)
 
-            btcValue=s["data"]["totalAssetOfBtc"]
+            snapshotData = s.data
+            btcValue=snapshotData.total_asset_of_btc
 
             print("Time: %d - %s - BTC: %s" % (timestamp, date, btcValue))
 
@@ -334,9 +338,7 @@ class BinanceDataSet:
                 if crypto.name in setNewer.allCryptos:
                     cryptoNewer:Crypto=setNewer.allCryptos[crypto.name]
 
-                showValue("Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days,headerTitle=crypto.name)
-                showValue("Total-Plan",cryptoNewer.getTotal()-cryptoNewer.earnPlan,cryptoOlder.getTotal()-cryptoOlder.earnPlan,days)
-                showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days)
+                showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days,headerTitle=crypto.name)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
                     showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
@@ -356,6 +358,8 @@ class BinanceDataSet:
 
                 if cryptoNewer.earnPlan>0.0 or cryptoOlder.earnPlan>0.0:
                     showValue("Plan",cryptoNewer.earnPlan,cryptoOlder.earnPlan,days)
+
+                showValue("= Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days)
 
                 if cryptoNewer.paymentDeposit>0.0 or cryptoOlder.paymentDeposit>0.0:
                     showValue("Deposit",cryptoNewer.paymentDeposit,cryptoOlder.paymentDeposit)
