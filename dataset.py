@@ -338,10 +338,10 @@ class BinanceDataSet:
                 if crypto.name in setNewer.allCryptos:
                     cryptoNewer:Crypto=setNewer.allCryptos[crypto.name]
 
-                showValue("Spot+Order",cryptoNewer.orderWalletTotal,cryptoOlder.orderWalletTotal,days,headerTitle=crypto.name)
+                showValue("Spot",cryptoNewer.orderWalletFree,cryptoOlder.orderWalletFree,days,headerTitle=crypto.name)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
-                    showValue("Ord-Locked",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
+                    showValue("In Order",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
                     showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)

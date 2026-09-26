@@ -12,10 +12,10 @@ from binance_sdk_convert.convert import Convert
 
 from mhl5k.settings import Settings
 from mhl5k.files import Files
+from mhl5k.colors import Colors
 
 
-VERSION = "0.4"
-
+VERSION = "0.5"
 
 # Functions and constants
 # ------------------------
@@ -77,12 +77,12 @@ if __name__ == "__main__":
             if quote.quote_id:
                 accepted_response = convertClient.rest_api.accept_quote(quote_id=quote.quote_id)
                 accepted = accepted_response.data()
-                print(f"Accepted: {accepted}")
+                print(f"{Colors.CGREEN}Accepted:{Colors.CRESET} {accepted}")
             else:
-                print(f"Error, quote ID not found: {quote}")
+                print(f"{Colors.CRED}Error:{Colors.CRESET} quote ID not found: {quote}")
 
     except Exception as E:
-        print("Error: %s" % E)
+        print(f"{Colors.CRED}Error:{Colors.CRESET} %s" % E)
         exit(1)
 
     # exit
