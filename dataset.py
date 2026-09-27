@@ -2,7 +2,7 @@
 # License: MIT
 # Author: mhl5k
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 
@@ -38,6 +38,34 @@ class BinanceDataSet:
 
         # list to hold all cryptosets of different times
         self.cryptoSetList:list = []
+
+    def gatherOpenUSDCValues(self):
+        today = datetime.now(timezone.utc).date()
+        open_fields = []
+
+        for dataset in self.cryptoSetList:
+            day = datetime.fromtimestamp(dataset.timestamp, timezone.utc).date()
+            for crypto in dataset.allCryptos.values():
+                if day == today and crypto.dailyCloseUSDC == -1.0:
+                    crypto.dailyCloseUSDC = None
+                if crypto.name != "USDC" and crypto.dailyCloseUSDC != -1.0 and (day >= today or crypto.dailyCloseUSDC is None):
+                    open_fields.append((dataset, crypto, day))
+
+        print(f"Gathering open USDC values... {len(open_fields)} open fields")
+
+        for dataset, crypto, day in open_fields:
+            try:
+                price = PriceConversion.getPriceForCrypto(
+                    crypto.name, 1.0, "USDC", day=day, spotClient=self.spotClient
+                )
+                if day < today:
+                    crypto.dailyCloseUSDC = price
+                else:
+                    crypto.currentUSDCValue = price
+            except ValueError as error:
+                if day < today:
+                    crypto.dailyCloseUSDC = -1.0
+                print(f"USDC price unavailable for {crypto.name} on {day}: {error}")
 
     # Gathering data from binance, setup
     # ----------------------------------
@@ -292,6 +320,16 @@ class BinanceDataSet:
         # if before is None, set it to first
         before = first if before is None else before
 
+        def unitPriceUSDC(crypto:Crypto, dataset:CryptoSet) -> float | None:
+            if crypto.name == "USDC":
+                return 1.0
+            day = datetime.fromtimestamp(dataset.timestamp, timezone.utc).date()
+            if day == datetime.now(timezone.utc).date():
+                price = crypto.currentUSDCValue
+            else:
+                price = crypto.dailyCloseUSDC
+            return price if price is not None and price > 0 else None
+
         # analyze
         print("First:  %s - %.8f - %s" % (first.time,first.totalBTC.total,first.uuid))
         print("Before: %s - %.8f - %s" % (before.time,before.totalBTC.total,before.uuid))
@@ -328,7 +366,7 @@ class BinanceDataSet:
             # show difference between both
             crypto:Crypto
             for crypto in setNewer.allCryptos.values():
-                zeroCrypto=Crypto(setName=crypto,setWalletClient=self.walletClient)
+                zeroCrypto=Crypto(setName=crypto.name,setWalletClient=self.walletClient)
 
                 cryptoOlder=zeroCrypto
                 if crypto.name in setOlder.allCryptos:
@@ -366,14 +404,14 @@ class BinanceDataSet:
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
                     showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
-                # show growth info of USDC value
-                olderUSDC = cryptoOlder.getConvertedTotalByName("USDC")
-                newerUSDC = cryptoNewer.getConvertedTotalByName("USDC")
-
-                if olderUSDC is not None and newerUSDC is not None:
-                    showValue("USDC Value",newerUSDC.total,olderUSDC.total,days)
+                # Show the price of one coin and the value of the full position separately.
+                olderPrice = unitPriceUSDC(cryptoOlder, setOlder)
+                newerPrice = unitPriceUSDC(cryptoNewer, setNewer)
+                if olderPrice is not None and newerPrice is not None:
+                    showValue("USDC Value",newerPrice,olderPrice,days)
+                    showValue("= Total USDC",newerPrice * cryptoNewer.getTotal(),olderPrice * cryptoOlder.getTotal(),days)
                 else:
-                    print(f"{Colors.CYELLOW}USDC Value not available for growth calculation{Colors.CRESET}")
+                    print(f"{Colors.CYELLOW}USDC daily candle or trading pair unavailable{Colors.CRESET}")
 
                 # show rating
                 # ----------------

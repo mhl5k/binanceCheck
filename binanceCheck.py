@@ -10,7 +10,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 
 # Functions and constants
@@ -45,16 +45,18 @@ if __name__ == "__main__":
 
         # only gather new data if not disabled
         if args.no_gather == False:
+            # gather new data set
             binanceAccountDataSet.gatherNewDataSet()
 
-        # only save data if not disabled
+        # gather open USDC values for all assets, including the new data set
+        binanceAccountDataSet.gatherOpenUSDCValues()
         if args.no_save == False:
             binanceAccountDataSet.saveData()
 
-        print("Done")
-
         # analyze datasets
         binanceAccountDataSet.analyzeGrowthAndShow(compareNrOfDays)
+
+        print("Done")
 
     except Exception as E:
         print("Error: %s" % E)
