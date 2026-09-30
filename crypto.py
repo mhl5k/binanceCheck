@@ -4,10 +4,12 @@
 
 import json
 import logging
+from datetime import date, datetime, timezone
 
 from binance_sdk_wallet import Wallet
 from binance_sdk_spot import Spot
 from binance_sdk_spot.rest_api.models import GetAccountResponse
+from binance_common.errors import ClientError, BadRequestError
 
 
 class PriceConversion:
@@ -43,12 +45,33 @@ class PriceConversion:
             logging.debug(error)
             raise ValueError(error)
 
+    @staticmethod
+    def _getPairPrice(symbolPair:str, day:date | None, spotClient:Spot | None) -> float:
+        if day is None:
+            return PriceConversion._getPriceFromGatheredPriceTickers(symbolPair)
+        if spotClient is None:
+            raise ValueError("Spot client is required for daily prices")
+
+        start_time = int(datetime.combine(day, datetime.min.time(), timezone.utc).timestamp() * 1000)
+        try:
+            candles = spotClient.rest_api.klines(
+                symbol=symbolPair, interval="1d", start_time=start_time, limit=1
+            ).data()
+            if candles and int(candles[0][0]) == start_time:
+                close = float(candles[0][4])
+                if close > 0:
+                    return close
+        except (ClientError, BadRequestError) as error:
+            logging.debug("Daily candle unavailable for %s on %s: %s", symbolPair, day, error)
+        raise ValueError(f"Daily price for {symbolPair} on {day} not available")
+
     # return price/value for a given crypto name and amount
     # default conversion is to BTC, but can every crypto
-    # if not found, function will try to convert over USDC
+    # If day is set, use UTC daily candle closes instead of current ticker prices.
     # can be called from outside
     @staticmethod
-    def getPriceForCrypto(fromCrypto:str, fromCryptoAmount:float, toCrypto:str, allowRoute:bool=True) -> float:
+    def getPriceForCrypto(fromCrypto:str, fromCryptoAmount:float, toCrypto:str, allowRoute:bool=True,
+                          day:date | None=None, spotClient:Spot | None=None) -> float:
         # try to convert
         logging.debug(f"--- getPriceForCrypto --- {fromCrypto}{toCrypto}  ---")
         logging.debug(f"Try to convert {fromCryptoAmount:.8f} {fromCrypto} to {toCrypto}")
@@ -61,7 +84,7 @@ class PriceConversion:
         # 2. Direct Pair: e.g. ETHBTC
         pair = fromCrypto + toCrypto
         try:
-            price = PriceConversion._getPriceFromGatheredPriceTickers(pair)
+            price = PriceConversion._getPairPrice(pair, day, spotClient)
             value_for_crypto = fromCryptoAmount * price
             logging.debug(f"Using direct pair {pair}: {value_for_crypto:.8f} {toCrypto}")
             return value_for_crypto
@@ -71,22 +94,22 @@ class PriceConversion:
         # 3. Reverse Pair: e.g. BTCETH
         reverse_pair = toCrypto + fromCrypto
         try:
-            price = PriceConversion._getPriceFromGatheredPriceTickers(reverse_pair)
+            price = PriceConversion._getPairPrice(reverse_pair, day, spotClient)
             value_for_crypto = fromCryptoAmount / price
             logging.debug(f"Using reverse pair {reverse_pair}: {value_for_crypto:.8f} {toCrypto}")
             return value_for_crypto
         except ValueError:
             logging.debug(f"Reverse pair {reverse_pair} not found.")
 
-        # 4. Fallback: over USDC, if possible
-        route_list = ["USDC", "USDT"]
+        # 4. Fallback through another trading pair.
+        route_list = ["BTC", "USDC", "USDT"] if day is not None else ["USDC", "USDT"]
         if allowRoute:
             for route_over in route_list:
                 if fromCrypto != route_over and toCrypto != route_over:
                     try:
                         logging.debug(f"Trying to route over {route_over}...")
-                        routed_value = PriceConversion.getPriceForCrypto(fromCrypto, fromCryptoAmount, route_over, False)
-                        value_for_crypto = PriceConversion.getPriceForCrypto(route_over, routed_value, toCrypto, False)
+                        routed_value = PriceConversion.getPriceForCrypto(fromCrypto, fromCryptoAmount, route_over, False, day, spotClient)
+                        value_for_crypto = PriceConversion.getPriceForCrypto(route_over, routed_value, toCrypto, False, day, spotClient)
                         logging.debug(f"{route_over} routed {fromCrypto}->{toCrypto}: {value_for_crypto:.8f} {toCrypto}")
                         return value_for_crypto
                     except ValueError:
@@ -95,9 +118,10 @@ class PriceConversion:
         # 5. Alles gescheitert -> Debughilfe + Fehler
         # mögliche Paare zum Debuggen ausgeben
         possible_pairs = []
-        for key in PriceConversion.allGatheredPriceTickers:
-            if key.startswith(fromCrypto) or key.endswith(fromCrypto):
-                possible_pairs.append(key)
+        if day is None:
+            for key in PriceConversion.allGatheredPriceTickers:
+                if key.startswith(fromCrypto) or key.endswith(fromCrypto):
+                    possible_pairs.append(key)
 
         # nach außen klar signalisieren: keine Conversion möglich
         raise ValueError(f"Cannot convert {fromCrypto} to {toCrypto}, possible pairs: {possible_pairs if len(possible_pairs)>0 else 'none'}")
@@ -196,6 +220,7 @@ class Crypto:
             # V5
             "earnFlexible": "{:.8f}".format(self.earnFlexible),
             "earnLocked": "{:.8f}".format(self.earnLocked),
+            "dailyCloseUSDC": self.dailyCloseUSDC,
             # V7
             "klines": self.monthKlines
         }
@@ -235,6 +260,7 @@ class Crypto:
             self.earnFlexible=float(jsonContent["earnFlexible"])
         if "earnLocked" in jsonContent:
             self.earnLocked=float(jsonContent["earnLocked"])
+        self.dailyCloseUSDC = jsonContent.get("dailyCloseUSDC")
         # version 6
         if "growth" in jsonContent:
             self.rating = str(jsonContent["growth"])
@@ -272,6 +298,8 @@ class Crypto:
 
         # dict for all totals in different currencies
         self.allTotals:list[Crypto.ConvertedTotal] = []
+        self.dailyCloseUSDC:float | None = None
+        self.currentUSDCValue:float | None = None
 
         # set whether crypto has a earn flexible or locked possibility
         self.hasFlexiblePossibility:bool = False
