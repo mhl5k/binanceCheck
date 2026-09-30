@@ -139,17 +139,18 @@ class BinanceDataSet:
         count=1
         maxcount=1
         while count<=maxcount:
-            # The SDK returns a dict here because numeric duration fields fail its model validation.
+            # Depending on model validation, the SDK can return either a model or a dict.
             locked = self.earnClient.rest_api.get_locked_product_position(current=count,size=100).data()
             logging.debug(locked)
-            amount:int=int(locked["total"])
+            amount:int=int(locked["total"] if isinstance(locked, dict) else locked.total)
             # roundup amount/100
             maxcount = (amount + 99) // 100
-            for s in locked["rows"]:
+            rows = locked["rows"] if isinstance(locked, dict) else locked.rows
+            for s in rows:
                 # print(s)
-                name=s["asset"]
+                name=s["asset"] if isinstance(s, dict) else s.asset
                 crypto=newCryptoSet.getCryptoByName(name)
-                crypto.addToLocked(float(s["amount"]))
+                crypto.addToLocked(float(s["amount"] if isinstance(s, dict) else s.amount))
 
             count+=1
 
