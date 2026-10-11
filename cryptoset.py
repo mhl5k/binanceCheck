@@ -62,6 +62,11 @@ class CryptoSet:
         # sort the dict
         self.allCryptos = dict(sorted(self.allCryptos.items(), key=lambda x: x[0]))
 
+    @property
+    def cryptoCount(self) -> int:
+        # Derive from holdings so older datasets and newly gathered sets agree.
+        return sum(crypto.getTotal() > 0 for crypto in self.allCryptos.values())
+
     def updateTotalsOfSet(self):
         print("Updating all crypto values to BTC and FIAT...")
         self.totalBTC.updateTotals(self.allCryptos)

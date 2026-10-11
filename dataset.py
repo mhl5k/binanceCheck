@@ -336,7 +336,7 @@ class BinanceDataSet:
         print("Before: %s - %.8f - %s" % (before.time,before.totalBTC.total,before.uuid))
         print("Last:   %s - %.8f - %s" % (last.time,last.totalBTC.total,last.uuid))
 
-        def showValue(starttext:str, NewerValue, OlderValue, days:int=0, headerTitle=""):
+        def showValue(starttext:str, NewerValue, OlderValue, days:int=0, headerTitle="", integerValues:bool=False):
             diff=NewerValue-OlderValue
             perc=0.0
             if (OlderValue>0):
@@ -355,7 +355,10 @@ class BinanceDataSet:
                 print("\n%-13s %17s %17s %17s %10s %6s %10s" % (headerTitle,"Newer","Older","Diff","Percent","Days","%/day"))
 
             # print values
-            print("%-13s %17.8f %17.8f %s%17.8f %9.4f%% %s%s" % (starttext,NewerValue,OlderValue,color,diff,perc,daystext,Colors.CRESET))
+            if integerValues:
+                print("%-13s %17d %17d %s%+17d %9.4f%% %s%s" % (starttext,NewerValue,OlderValue,color,diff,perc,daystext,Colors.CRESET))
+            else:
+                print("%-13s %17.8f %17.8f %s%17.8f %9.4f%% %s%s" % (starttext,NewerValue,OlderValue,color,diff,perc,daystext,Colors.CRESET))
 
         def showDiff(setNewer:CryptoSet, setOlder:CryptoSet):
             # days between these sets
@@ -500,7 +503,8 @@ class BinanceDataSet:
                 # show growth string
                 print(cryptoNewer.rating)
 
-            showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days,headerTitle=" ")
+            showValue("∑ Cryptos",setNewer.cryptoCount,setOlder.cryptoCount,days,headerTitle=" ",integerValues=True)
+            showValue("∑ BTC all",setNewer.totalBTC.total,setOlder.totalBTC.total,days)
             n=setNewer.totalBTC.total-setNewer.totalBTC.deposit
             o=setOlder.totalBTC.total-setOlder.totalBTC.deposit
             showValue("∑ BTC -Depo",n,o,days)
