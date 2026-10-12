@@ -244,53 +244,16 @@ class Crypto:
         self.orderWalletLocked=float(jsonContent["orderWalletLocked"])
         self.orderWalletTotal=float(jsonContent["orderWalletTotal"])
         self.liquidSwapValue=float(jsonContent["liquidSwapValue"])
-        self.paymentDeposit=float(jsonContent.get("paymentDeposit", 0.0))
-        # version 1, migrated in 4 to convertedTotal
-        if "savingsWalletFlexible" in jsonContent:
-            self.earnFlexible=float(jsonContent["savingsWalletFlexible"])
-        if "totalBTCValue" in jsonContent:
-            totalBTCValue=float(jsonContent["totalBTCValue"])
-            btcTotal=Crypto.ConvertedTotal("BTC")
-            btcTotal.set(totalBTCValue,0.0)
-            self.allTotals.append(btcTotal)
-
-        # version 3
-        if "earnStaking" in jsonContent:
-            self.earnLocked=float(jsonContent["earnStaking"])
-        if "earnPlan" in jsonContent:
-            self.earnPlan=float(jsonContent["earnPlan"])
-        # version 4
-        if "convertedTotal" in jsonContent:
-            clist:list=jsonContent["convertedTotal"]
-            for entry in clist:
-                c=Crypto.ConvertedTotal(entry["name"])
-                c.fromJSON(entry)
-                self.allTotals.append(c)
-        # version 5
-        if "earnFlexible" in jsonContent:
-            self.earnFlexible=float(jsonContent["earnFlexible"])
-        if "earnLocked" in jsonContent:
-            self.earnLocked=float(jsonContent["earnLocked"])
-        # version 6
-        if "growth" in jsonContent:
-            self.rating = str(jsonContent["growth"])
-        # version 7
-        if "klines" in jsonContent:
-            self.monthKlines=jsonContent["klines"]
-        # V8: migrate old unit-price fields into the existing conversion format.
-        if self.getConvertedTotalByName("USDC") is None:
-            unavailable = False
-            for field in ("USDCValue", "currentUSDCValue", "dailyCloseUSDC"):
-                price = jsonContent.get(field)
-                if price is not None and float(price) > 0:
-                    self.updateTotalIn("USDC", unitPrice=float(price))
-                    break
-                if price is not None and float(price) == -1:
-                    unavailable = True
-            if unavailable and self.getConvertedTotalByName("USDC") is None:
-                converted = Crypto.ConvertedTotal("USDC")
-                converted.set(None, None)
-                self.allTotals.append(converted)
+        self.paymentDeposit=float(jsonContent["paymentDeposit"])
+        self.earnFlexible=float(jsonContent["earnFlexible"])
+        self.earnLocked=float(jsonContent["earnLocked"])
+        self.earnPlan=float(jsonContent["earnPlan"])
+        self.monthKlines=jsonContent["klines"]
+        self.allTotals = []
+        for entry in jsonContent["convertedTotal"]:
+            converted = Crypto.ConvertedTotal(entry["name"])
+            converted.fromJSON(entry)
+            self.allTotals.append(converted)
 
     def getConvertedTotalByName(self, totalSymbol: str) -> "Crypto.ConvertedTotal | None":
         """

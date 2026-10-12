@@ -2,23 +2,23 @@
 # License: MIT
 # Author: mhl5k
 
-from datetime import datetime, timezone
+from datetime import datetime
 import json
 import logging
+from pathlib import Path
 
 from binance_sdk_wallet import Wallet, WALLET_REST_API_PROD_URL
 from binance_sdk_spot import Spot
 from binance_sdk_simple_earn import SimpleEarn
 from binance_sdk_fiat import Fiat
 from binance_common.errors import ClientError, BadRequestError
-from binance_common.errors import Error as BinanceAPIError
-from requests.exceptions import RequestException
 from binance_common.configuration import ConfigurationRestAPI
 from mhl5k.settings import Settings
 from mhl5k.colors import Colors
 from mhl5k.files import Files
-from crypto import Crypto, PriceConversion, PriceUnavailableError
+from crypto import Crypto, PriceConversion
 from cryptoset import CryptoSet
+from migrations import CURRENT_DATABASE_VERSION, migrateDatabase
 
 
 def printSection(sec: str):
@@ -40,62 +40,6 @@ class BinanceDataSet:
 
         # list to hold all cryptosets of different times
         self.cryptoSetList:list = []
-
-    def gatherOpenUSDCConvertedTotal(self):
-        # Migrate loaded datasets; new snapshots use updateTotalsOfSet().
-        today = datetime.now(timezone.utc).date()
-        open_fields = []
-
-        for dataset in self.cryptoSetList:
-            day = datetime.fromtimestamp(dataset.timestamp, timezone.utc).date()
-            for crypto in dataset.allCryptos.values():
-                converted = crypto.getConvertedTotalByName("USDC")
-                if converted is not None and (converted.total is not None
-                        or crypto.getConvertedTotalByName("USDT") is not None):
-                    continue
-                if crypto.name == "USDC":
-                    crypto.updateTotalIn("USDC", unitPrice=1.0)
-                # Fill missing values using the snapshot date's daily candle.
-                elif day <= today:
-                    open_fields.append((dataset, crypto, day))
-
-        if open_fields:
-            print(f"Migrating USDC/USDT conversions... {len(open_fields)} positions to check")
-
-        for dataset, crypto, day in open_fields:
-            for currency in ("USDC", "USDT"):
-                converted = crypto.getConvertedTotalByName(currency)
-                if converted is not None:
-                    if converted.total is not None:
-                        break
-                    continue
-                try:
-                    price = PriceConversion.getPriceForCrypto(
-                        crypto.name, 1.0, currency, day=day, spotClient=self.spotClient
-                    )
-                    crypto.updateTotalIn(currency, unitPrice=price)
-                    break
-                except PriceUnavailableError as error:
-                    unavailable = Crypto.ConvertedTotal(currency)
-                    unavailable.set(None, None)
-                    crypto.allTotals.append(unavailable)
-                    print(f"{currency} price unavailable for {crypto.name} on {day}: {error}")
-                except (BinanceAPIError, RequestException, OSError) as error:
-                    print(f"{currency} price request failed for {crypto.name} on {day}; will retry: {error}")
-                    break
-
-        for dataset in self.cryptoSetList:
-            for currency in ("USDC", "USDT"):
-                total = CryptoSet.CryptoSetTotal(currency)
-                for crypto in dataset.allCryptos.values():
-                    converted = crypto.getConvertedTotalByName(currency)
-                    if converted is not None and converted.total is not None:
-                        total.total += converted.total
-                        total.deposit += converted.deposit or 0.0
-                if currency == "USDC":
-                    dataset.totalUSDC = total
-                else:
-                    dataset.totalUSDT = total
 
     # Gathering data from binance, setup
     # ----------------------------------
@@ -370,6 +314,16 @@ class BinanceDataSet:
         print("Last:   %s - %.8f - %s" % (last.time,last.totalBTC.total,last.uuid))
 
         def showValue(starttext:str, NewerValue, OlderValue, days:int=0, headerTitle="", integerValues:bool=False):
+            # header when requested
+            if headerTitle!="":
+                print("\n%-13s %17s %17s %17s %10s %6s %10s" % (headerTitle,"Newer","Older","Diff","Percent","Days","%/day"))
+
+            if OlderValue is None:
+                newerText = f"{NewerValue:.8f}" if NewerValue is not None else "unavailable"
+                olderText = "kein Bestand" if starttext.startswith("= Total") else ""
+                print(f"{starttext:<13} {newerText:>17} {olderText:>17}".rstrip())
+                return
+
             diff=NewerValue-OlderValue
             perc=0.0
             if (OlderValue>0):
@@ -382,10 +336,6 @@ class BinanceDataSet:
 
             percPerDay=perc/days
             daystext="%6d %9.4f%%" % (days,percPerDay)
-
-            # header when requested
-            if headerTitle!="":
-                print("\n%-13s %17s %17s %17s %10s %6s %10s" % (headerTitle,"Newer","Older","Diff","Percent","Days","%/day"))
 
             # print values
             if integerValues:
@@ -413,33 +363,38 @@ class BinanceDataSet:
                 if crypto.name in setNewer.allCryptos:
                     cryptoNewer:Crypto=setNewer.allCryptos[crypto.name]
 
-                showValue("Spot",cryptoNewer.orderWalletFree,cryptoOlder.orderWalletFree,days,headerTitle=crypto.name)
+                hasOlder = crypto.name in setOlder.allCryptos
+
+                def showCryptoValue(label, newer, older, days=0, headerTitle=""):
+                    showValue(label,newer,older if hasOlder else None,days,headerTitle=headerTitle)
+
+                showCryptoValue("Spot",cryptoNewer.orderWalletFree,cryptoOlder.orderWalletFree,days,headerTitle=crypto.name)
 
                 if cryptoNewer.orderWalletLocked>0.0 or cryptoOlder.orderWalletLocked>0.0:
-                    showValue("In Order",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
+                    showCryptoValue("In Order",cryptoNewer.orderWalletLocked,cryptoOlder.orderWalletLocked,days)
 
                 if cryptoNewer.earnFlexible>0.0 or cryptoOlder.earnFlexible>0.0:
-                    showValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
+                    showCryptoValue("Earn-Flexible",cryptoNewer.earnFlexible,cryptoOlder.earnFlexible,days)
                 if cryptoNewer.hasFlexiblePossibility and cryptoNewer.canUseFlexible:
                     print("%sEarn-Flexible is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.earnLocked>0.0 or cryptoOlder.earnLocked>0.0:
-                    showValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
+                    showCryptoValue("Earn-Locked",cryptoNewer.earnLocked,cryptoOlder.earnLocked,days)
                 if cryptoNewer.hasLockedPossibility and cryptoNewer.canUseLocked:
                     print("%sEarn-Locked is available, but not used%s" % (Colors.CYELLOW,Colors.CRESET))
 
                 if cryptoNewer.liquidSwapValue>0.0 or cryptoOlder.liquidSwapValue>0.0:
-                    showValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)
+                    showCryptoValue("Liquid",cryptoNewer.liquidSwapValue,cryptoOlder.liquidSwapValue,days)
 
                 if cryptoNewer.earnPlan>0.0 or cryptoOlder.earnPlan>0.0:
-                    showValue("Plan",cryptoNewer.earnPlan,cryptoOlder.earnPlan,days)
+                    showCryptoValue("Plan",cryptoNewer.earnPlan,cryptoOlder.earnPlan,days)
 
-                showValue("= Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days)
+                showCryptoValue("= Total",cryptoNewer.getTotal(),cryptoOlder.getTotal(),days)
 
                 if cryptoNewer.paymentDeposit>0.0 or cryptoOlder.paymentDeposit>0.0:
-                    showValue("Deposit",cryptoNewer.paymentDeposit,cryptoOlder.paymentDeposit)
+                    showCryptoValue("Deposit",cryptoNewer.paymentDeposit,cryptoOlder.paymentDeposit)
                 if cryptoNewer.paymentWithdraw>0.0 or cryptoOlder.paymentWithdraw>0.0:
-                    showValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
+                    showCryptoValue("Withdraw",cryptoNewer.paymentWithdraw,cryptoOlder.paymentWithdraw)
 
                 # Compare only values in the same currency, including USDT fallback.
                 hasValuation = False
@@ -452,11 +407,15 @@ class BinanceDataSet:
                         (f"{currency}/Asset", unitPrice(cryptoNewer,currency), unitPrice(cryptoOlder,currency)),
                         (f"= Total {currency}", totalValue(cryptoNewer,currency), totalValue(cryptoOlder,currency)),
                     ):
-                        if newer is not None and older is not None:
+                        if not hasOlder:
+                            showCryptoValue(label,newer,None,days)
+                        elif newer is not None and older is not None:
                             showValue(label,newer,older,days)
                         else:
-                            newerText = f"{newer:.8f}" if newer is not None else "unavailable"
-                            olderText = f"{older:.8f}" if older is not None else "unavailable"
+                            newerText = (f"{newer:.8f}" if newer is not None else
+                                         "kein Bestand" if crypto.name not in setNewer.allCryptos else "unavailable")
+                            olderText = (f"{older:.8f}" if older is not None else
+                                         "kein Bestand" if crypto.name not in setOlder.allCryptos else "unavailable")
                             print(f"{label:<13} {newerText:>17} {olderText:>17}")
                 if not hasValuation:
                     print(f"{Colors.CYELLOW}USDC/USDT conversion unavailable{Colors.CRESET}")
@@ -591,7 +550,7 @@ class BinanceDataSet:
             jsonList.append(entry.toJSON())
 
         jsonDict = {
-            "version": 8,
+            "version": CURRENT_DATABASE_VERSION,
             "binanceDataSet": jsonList
         }
 
@@ -601,12 +560,27 @@ class BinanceDataSet:
         print("Loading data...")
         jsonContent:dict=dict()
         if Files.databaseExists():
-            with open(Files.getDatabaseFilenameWithPath(), "r", encoding="utf8") as infile:
-                jsonContent=json.load(infile)
-                logging.debug(jsonContent)
-                infile.close()
+            databasePath = Path(Files.getDatabaseFilenameWithPath())
+            original = databasePath.read_bytes()
+            jsonContent = json.loads(original)
+            logging.debug(jsonContent)
 
-            self.fromJSON(jsonContent)
+            if int(jsonContent.get("version", 1)) < CURRENT_DATABASE_VERSION:
+                date = datetime.now().strftime("%Y%m%d")
+                backupStem = f"{databasePath.stem}.pre-migration-v{CURRENT_DATABASE_VERSION}-{date}"
+                counter = 1
+                while True:
+                    suffix = "" if counter == 1 else f"-{counter}"
+                    backupPath = databasePath.with_name(f"{backupStem}{suffix}{databasePath.suffix}")
+                    try:
+                        with backupPath.open("xb") as backup:
+                            backup.write(original)
+                        break
+                    except FileExistsError:
+                        counter += 1
+                print(f"Database backup before migration: {backupPath.name}")
+
+            self.fromJSON(migrateDatabase(jsonContent, self.spotClient))
 
     def saveData(self):
         print("Saving data...")

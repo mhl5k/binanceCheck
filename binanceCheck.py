@@ -43,9 +43,6 @@ if __name__ == "__main__":
         binanceAccountDataSet = BinanceDataSet(settings)
         binanceAccountDataSet.loadData()
 
-        # migrate older datasets before gathering a new snapshot
-        binanceAccountDataSet.gatherOpenUSDCConvertedTotal()
-
         # only gather new data if not disabled
         if args.no_gather == False:
             # gather new data set

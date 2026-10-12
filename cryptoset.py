@@ -107,30 +107,18 @@ class CryptoSet:
         return jsonDict
 
     def fromJSON(self, jsonContent:dict):
-        # v1
-        if "uuid" in jsonContent:
-            self.uuid=jsonContent["uuid"]
+        self.uuid=jsonContent["uuid"]
         self.timestamp=float(jsonContent["timestamp"])
         self.time=jsonContent["time"]
-        # go through all cryptos
-        cryptoDict=jsonContent["crypto"]
-        for cryptoContent in cryptoDict:
+        self.allCryptos = {}
+        for cryptoContent in jsonContent["crypto"]:
             asset=cryptoContent["asset"]
-            newCrypto=Crypto(setName=asset,setWalletClient=self.walletClient)
-            newCrypto.fromJSON(cryptoContent)
-            self.allCryptos[asset]=newCrypto
-        # v1
-        if "totalBTC" in jsonContent:
-            self.totalBTC.total=float(jsonContent["totalBTC"])
-        # v3
-        if "totals" in jsonContent:
-            if "BTC" in jsonContent["totals"]:
-                self.totalBTC.fromJSON(jsonContent["totals"]["BTC"])
-            if "USDT" in jsonContent["totals"]:
-                self.totalUSDT.fromJSON(jsonContent["totals"]["USDT"])
-            # v4
-            if "USDC" in jsonContent["totals"]:
-                self.totalUSDC.fromJSON(jsonContent["totals"]["USDC"])
+            crypto=Crypto(setName=asset,setWalletClient=self.walletClient)
+            crypto.fromJSON(cryptoContent)
+            self.allCryptos[asset]=crypto
+        self.totalBTC.fromJSON(jsonContent["totals"]["BTC"])
+        self.totalUSDC.fromJSON(jsonContent["totals"]["USDC"])
+        self.totalUSDT.fromJSON(jsonContent["totals"]["USDT"])
 
     def __init__(self, setWalletClient:Wallet):
         # binance client object
