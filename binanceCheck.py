@@ -10,7 +10,7 @@ from mhl5k.settings import Settings
 from mhl5k.files import Files
 
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 
 # Functions and constants
@@ -43,13 +43,14 @@ if __name__ == "__main__":
         binanceAccountDataSet = BinanceDataSet(settings)
         binanceAccountDataSet.loadData()
 
+        # migrate older datasets before gathering a new snapshot
+        binanceAccountDataSet.gatherOpenUSDCConvertedTotal()
+
         # only gather new data if not disabled
         if args.no_gather == False:
             # gather new data set
             binanceAccountDataSet.gatherNewDataSet()
 
-        # gather open USDC values for all assets, including the new data set
-        binanceAccountDataSet.gatherOpenUSDCValues()
         if args.no_save == False:
             binanceAccountDataSet.saveData()
 

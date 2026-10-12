@@ -12,6 +12,10 @@ from binance_sdk_spot.rest_api.models import GetAccountResponse
 from binance_common.errors import ClientError, BadRequestError
 
 
+class PriceUnavailableError(ValueError):
+    """No trading pair or candle exists for the requested conversion."""
+
+
 class PriceConversion:
 
     # all price tickers
@@ -43,7 +47,7 @@ class PriceConversion:
         else:
             error=f"Price for {symbolPair} not found in gathered tickers!"
             logging.debug(error)
-            raise ValueError(error)
+            raise PriceUnavailableError(error)
 
     @staticmethod
     def _getPairPrice(symbolPair:str, day:date | None, spotClient:Spot | None) -> float:
@@ -62,8 +66,10 @@ class PriceConversion:
                 if close > 0:
                     return close
         except (ClientError, BadRequestError) as error:
+            if "invalid symbol" not in str(error).lower():
+                raise
             logging.debug("Daily candle unavailable for %s on %s: %s", symbolPair, day, error)
-        raise ValueError(f"Daily price for {symbolPair} on {day} not available")
+        raise PriceUnavailableError(f"Daily price for {symbolPair} on {day} not available")
 
     # return price/value for a given crypto name and amount
     # default conversion is to BTC, but can every crypto
@@ -88,7 +94,7 @@ class PriceConversion:
             value_for_crypto = fromCryptoAmount * price
             logging.debug(f"Using direct pair {pair}: {value_for_crypto:.8f} {toCrypto}")
             return value_for_crypto
-        except ValueError:
+        except PriceUnavailableError:
             logging.debug(f"Direct pair {pair} not found.")
 
         # 3. Reverse Pair: e.g. BTCETH
@@ -98,7 +104,7 @@ class PriceConversion:
             value_for_crypto = fromCryptoAmount / price
             logging.debug(f"Using reverse pair {reverse_pair}: {value_for_crypto:.8f} {toCrypto}")
             return value_for_crypto
-        except ValueError:
+        except PriceUnavailableError:
             logging.debug(f"Reverse pair {reverse_pair} not found.")
 
         # 4. Fallback through another trading pair.
@@ -112,7 +118,7 @@ class PriceConversion:
                         value_for_crypto = PriceConversion.getPriceForCrypto(route_over, routed_value, toCrypto, False, day, spotClient)
                         logging.debug(f"{route_over} routed {fromCrypto}->{toCrypto}: {value_for_crypto:.8f} {toCrypto}")
                         return value_for_crypto
-                    except ValueError:
+                    except PriceUnavailableError:
                         logging.debug(f"Routing over {route_over} failed for {fromCrypto}->{toCrypto}!")
 
         # 5. Alles gescheitert -> Debughilfe + Fehler
@@ -124,7 +130,8 @@ class PriceConversion:
                     possible_pairs.append(key)
 
         # nach außen klar signalisieren: keine Conversion möglich
-        raise ValueError(f"Cannot convert {fromCrypto} to {toCrypto}, possible pairs: {possible_pairs if len(possible_pairs)>0 else 'none'}")
+        detail = f"no daily conversion route on {day}" if day is not None else f"possible pairs: {possible_pairs if possible_pairs else 'none'}"
+        raise PriceUnavailableError(f"Cannot convert {fromCrypto} to {toCrypto}, {detail}")
 
 
 class Crypto:
@@ -132,10 +139,10 @@ class Crypto:
     class ConvertedTotal:
         def __init__(self, name:str):
             self.name:str=name
-            self.total:float=0.0
-            self.deposit:float=0.0
+            self.total:float | None=0.0
+            self.deposit:float | None=0.0
 
-        def set(self, total:float, deposit:float):
+        def set(self, total:float | None, deposit:float | None):
             self.total=total
             self.deposit=deposit
 
@@ -143,16 +150,16 @@ class Crypto:
             jsonDict = {
                 # v4
                 "name": self.name,
-                "total": "{:.8f}".format(self.total),
-                "deposit": "{:.8f}".format(self.deposit),
+                "total": "{:.8f}".format(self.total) if self.total is not None else None,
+                "deposit": "{:.8f}".format(self.deposit) if self.deposit is not None else None,
             }
 
             return jsonDict
 
         def fromJSON(self, jsonContent:dict):
             self.name=jsonContent["name"]
-            self.total=float(jsonContent["total"])
-            self.deposit=float(jsonContent["deposit"])
+            self.total=float(jsonContent["total"]) if jsonContent["total"] is not None else None
+            self.deposit=float(jsonContent["deposit"]) if jsonContent["deposit"] is not None else None
 
     def getTotal(self) -> float:
         return self.orderWalletTotal+self.liquidSwapValue+self.earnFlexible+self.earnLocked
@@ -180,17 +187,21 @@ class Crypto:
     def addToPaymentWithdraw(self,toWithdraw:float):
         self.paymentWithdraw+=toWithdraw
 
-    def updateTotalIn(self,toSymbol:str) -> ConvertedTotal:
+    def updateTotalIn(self,toSymbol:str, unitPrice:float | None=None) -> ConvertedTotal:
         try:
             logging.debug(f"Updating total {toSymbol} for {self.name}")
-            total:float=PriceConversion.getPriceForCrypto(self.name,self.getTotal(),toSymbol)
+            total:float=(PriceConversion.getPriceForCrypto(self.name,self.getTotal(),toSymbol)
+                         if unitPrice is None else self.getTotal() * unitPrice)
 
             logging.debug(f"Updating total Deposit in {toSymbol} for {self.name}")
-            deposit:float=PriceConversion.getPriceForCrypto(self.name,self.paymentDeposit,toSymbol)
+            deposit:float=(PriceConversion.getPriceForCrypto(self.name,self.paymentDeposit,toSymbol)
+                           if unitPrice is None else self.paymentDeposit * unitPrice)
 
-            t:Crypto.ConvertedTotal=Crypto.ConvertedTotal(toSymbol)
+            t = self.getConvertedTotalByName(toSymbol)
+            if t is None:
+                t = Crypto.ConvertedTotal(toSymbol)
+                self.allTotals.append(t)
             t.set(total,deposit)
-            self.allTotals.append(t)
 
             return t
 
@@ -220,7 +231,6 @@ class Crypto:
             # V5
             "earnFlexible": "{:.8f}".format(self.earnFlexible),
             "earnLocked": "{:.8f}".format(self.earnLocked),
-            "dailyCloseUSDC": self.dailyCloseUSDC,
             # V7
             "klines": self.monthKlines
         }
@@ -234,6 +244,7 @@ class Crypto:
         self.orderWalletLocked=float(jsonContent["orderWalletLocked"])
         self.orderWalletTotal=float(jsonContent["orderWalletTotal"])
         self.liquidSwapValue=float(jsonContent["liquidSwapValue"])
+        self.paymentDeposit=float(jsonContent.get("paymentDeposit", 0.0))
         # version 1, migrated in 4 to convertedTotal
         if "savingsWalletFlexible" in jsonContent:
             self.earnFlexible=float(jsonContent["savingsWalletFlexible"])
@@ -260,13 +271,26 @@ class Crypto:
             self.earnFlexible=float(jsonContent["earnFlexible"])
         if "earnLocked" in jsonContent:
             self.earnLocked=float(jsonContent["earnLocked"])
-        self.dailyCloseUSDC = jsonContent.get("dailyCloseUSDC")
         # version 6
         if "growth" in jsonContent:
             self.rating = str(jsonContent["growth"])
         # version 7
         if "klines" in jsonContent:
             self.monthKlines=jsonContent["klines"]
+        # V8: migrate old unit-price fields into the existing conversion format.
+        if self.getConvertedTotalByName("USDC") is None:
+            unavailable = False
+            for field in ("USDCValue", "currentUSDCValue", "dailyCloseUSDC"):
+                price = jsonContent.get(field)
+                if price is not None and float(price) > 0:
+                    self.updateTotalIn("USDC", unitPrice=float(price))
+                    break
+                if price is not None and float(price) == -1:
+                    unavailable = True
+            if unavailable and self.getConvertedTotalByName("USDC") is None:
+                converted = Crypto.ConvertedTotal("USDC")
+                converted.set(None, None)
+                self.allTotals.append(converted)
 
     def getConvertedTotalByName(self, totalSymbol: str) -> "Crypto.ConvertedTotal | None":
         """
@@ -298,8 +322,6 @@ class Crypto:
 
         # dict for all totals in different currencies
         self.allTotals:list[Crypto.ConvertedTotal] = []
-        self.dailyCloseUSDC:float | None = None
-        self.currentUSDCValue:float | None = None
 
         # set whether crypto has a earn flexible or locked possibility
         self.hasFlexiblePossibility:bool = False

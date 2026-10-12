@@ -8,7 +8,7 @@ import logging
 import uuid
 
 from binance_sdk_wallet import Wallet
-from crypto import Crypto
+from crypto import Crypto, PriceUnavailableError
 
 
 class CryptoSet:
@@ -21,6 +21,8 @@ class CryptoSet:
             self.deposit:float=0.0
 
         def updateTotals(self,allCryptos:dict):
+            self.total = 0.0
+            self.deposit = 0.0
             # update all cryptos totals
             c:Crypto = None
             for c in allCryptos.values():
@@ -29,7 +31,13 @@ class CryptoSet:
                     currentTotal=c.updateTotalIn(self.name)
                     self.total+=currentTotal.total
                     self.deposit+=currentTotal.deposit
-                except ValueError as E:
+                except PriceUnavailableError as E:
+                    if self.name in ("USDC", "USDT"):
+                        unavailable = c.getConvertedTotalByName(self.name)
+                        if unavailable is None:
+                            unavailable = Crypto.ConvertedTotal(self.name)
+                            c.allTotals.append(unavailable)
+                        unavailable.set(None, None)
                     logging.error(f"Error updating crypto {c.name}: {E}")
 
             logging.debug(f"{self.name} Total: {self.total:.8f}, Total-Deposit: {self.deposit:.8f}")
@@ -71,6 +79,11 @@ class CryptoSet:
         print("Updating all crypto values to BTC and FIAT...")
         self.totalBTC.updateTotals(self.allCryptos)
         self.totalUSDC.updateTotals(self.allCryptos)
+        fallbackCryptos = {
+            name: crypto for name, crypto in self.allCryptos.items()
+            if crypto.getConvertedTotalByName("USDC").total is None
+        }
+        self.totalUSDT.updateTotals(fallbackCryptos)
 
     def toJSON(self) -> dict:
         cryptoList:list = []
@@ -85,7 +98,8 @@ class CryptoSet:
             "crypto": cryptoList,
             "totals": {
                 "BTC": self.totalBTC.toJSON(),
-                "USDC": self.totalUSDC.toJSON()
+                "USDC": self.totalUSDC.toJSON(),
+                "USDT": self.totalUSDT.toJSON()
             }
         }
 
@@ -113,7 +127,7 @@ class CryptoSet:
             if "BTC" in jsonContent["totals"]:
                 self.totalBTC.fromJSON(jsonContent["totals"]["BTC"])
             if "USDT" in jsonContent["totals"]:
-                self.totalUSDC.fromJSON(jsonContent["totals"]["USDT"])
+                self.totalUSDT.fromJSON(jsonContent["totals"]["USDT"])
             # v4
             if "USDC" in jsonContent["totals"]:
                 self.totalUSDC.fromJSON(jsonContent["totals"]["USDC"])
@@ -135,3 +149,4 @@ class CryptoSet:
         # totals in different currencies
         self.totalBTC=CryptoSet.CryptoSetTotal("BTC")
         self.totalUSDC=CryptoSet.CryptoSetTotal("USDC")
+        self.totalUSDT=CryptoSet.CryptoSetTotal("USDT")
